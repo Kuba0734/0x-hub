@@ -1,0 +1,177 @@
+/*
+ * Liquid glass. Feature code never writes these styles directly — it uses the
+ * primitives in src/components/glass/.
+ *
+ * Structure rendered by <GlassSurface>:
+ *   .glass                    edge, radius, depth shadow, fill
+ *     .glass-backdrop         backdrop blur + saturation (+ SVG refraction when .glass--refract)
+ *     .glass-sheen            1px top specular edge + cursor-following radial highlight
+ *     children                content (z-index above)
+ */
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--glass-radius, var(--radius-card));
+  background: var(--glass-fill);
+  box-shadow: var(--shadow-depth);
+  border: 1px solid var(--glass-stroke);
+  transition: background-color 120ms ease;
+  --mx: 50%;
+  --my: 0%;
+  --sheen: 0;
+}
+
+.glass--interactive:hover {
+  background: var(--glass-fill-hover);
+}
+
+.glass--solid {
+  /* For surfaces carrying lots of text (dialogs, palette): stronger fill keeps AA contrast. */
+  background: rgba(16, 16, 16, 0.72);
+}
+
+.glass-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  pointer-events: none;
+}
+
+.glass--refract > .glass-backdrop {
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%) url(#liquid-glass);
+}
+
+.glass--lite > .glass-backdrop {
+  /* Cards in scrolling grids: cheaper blur, never refraction. */
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.5)) saturate(130%);
+}
+
+.glass-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--glass-highlight) 0, transparent 1px),
+    radial-gradient(
+      420px circle at var(--mx) var(--my),
+      rgba(255, 255, 255, calc(0.07 * var(--sheen))),
+      transparent 60%
+    );
+  mask: linear-gradient(#000, #000);
+}
+
+.glass > :not(.glass-backdrop):not(.glass-sheen) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Reduce motion: no refraction, no cursor sheen. */
+[data-reduce-motion="true"] .glass--refract > .glass-backdrop {
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+}
+
+[data-reduce-motion="true"] .glass-sheen {
+  background: linear-gradient(180deg, var(--glass-highlight) 0, transparent 1px);
+}
+
+/* ---------- Ambient background ---------- */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+  opacity: 0.55;
+}
+
+.ambient-blob--a {
+  width: 60vmax;
+  height: 60vmax;
+  left: -15vmax;
+  top: -20vmax;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.09), transparent 65%);
+  animation: blob-a 48s ease-in-out infinite alternate;
+}
+
+.ambient-blob--b {
+  width: 50vmax;
+  height: 50vmax;
+  right: -12vmax;
+  bottom: -18vmax;
+  background: radial-gradient(circle, rgba(200, 200, 200, 0.07), transparent 65%);
+  animation: blob-b 61s ease-in-out infinite alternate;
+}
+
+.ambient-blob--c {
+  width: 34vmax;
+  height: 34vmax;
+  left: 40%;
+  top: 30%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent 65%);
+  animation: blob-c 73s ease-in-out infinite alternate;
+}
+
+@keyframes blob-a {
+  to {
+    transform: translate3d(18vmax, 12vmax, 0) scale(1.15);
+  }
+}
+@keyframes blob-b {
+  to {
+    transform: translate3d(-16vmax, -10vmax, 0) scale(0.9);
+  }
+}
+@keyframes blob-c {
+  to {
+    transform: translate3d(-12vmax, 8vmax, 0) scale(1.25);
+  }
+}
+
+[data-reduce-motion="true"] .ambient-blob {
+  display: none;
+}
+
+/* ---------- Shimmer skeleton ---------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+[data-reduce-motion="true"] .skeleton::after {
+  animation: none;
+  opacity: 0;
+}
+
+/* Title bar drag region children must not swallow the drag. */
+[data-tauri-drag-region] > .drag-passthrough {
+  pointer-events: none;
+}

@@ -1,0 +1,163 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+@import "./glass.css";
+@import "./editor.css";
+
+/* ---------- Design tokens (mirrored in src/lib/tokens.ts) ---------- */
+:root {
+  --bg-0: #000000;
+  --bg-1: #0a0a0a;
+  --bg-2: #141414;
+  --glass-fill: rgba(255, 255, 255, 0.04);
+  --glass-fill-hover: rgba(255, 255, 255, 0.07);
+  --glass-stroke: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --text-1: #ffffff;
+  --text-2: #a1a1a1;
+  --text-3: #5c5c5c;
+  --line: rgba(255, 255, 255, 0.06);
+  --focus-ring: rgba(255, 255, 255, 0.55);
+  --danger: #d4d4d4;
+  --danger-bg: rgba(255, 255, 255, 0.08);
+
+  /* Glass intensity (Settings → Appearance), 0.4 … 1.4 */
+  --glass-intensity: 1;
+  --glass-blur: calc(24px * var(--glass-intensity));
+
+  --radius-card: 16px;
+  --radius-panel: 24px;
+  --radius-pill: 999px;
+  --shadow-depth: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 20px 50px rgba(0, 0, 0, 0.6);
+
+  --titlebar-h: 40px;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-surface-0: var(--bg-0);
+  --color-surface-1: var(--bg-1);
+  --color-surface-2: var(--bg-2);
+  --color-fg: var(--text-1);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-line: var(--line);
+  --color-stroke: var(--glass-stroke);
+  --color-fill: var(--glass-fill);
+  --color-fill-hover: var(--glass-fill-hover);
+  --font-sans: "Geist Variable", "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Cascadia Mono", Consolas, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-hero: 40px;
+  --radius-card: 16px;
+  --radius-panel: 24px;
+}
+
+/* ---------- Base (layered, so Tailwind utilities can override) ---------- */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  html {
+    /* Transparent so Mica / Acrylic shows through the frameless window. */
+    background: transparent;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Running in a plain browser (no vibrancy): use a solid background. */
+  html.no-vibrancy {
+    background: var(--bg-0);
+  }
+
+  body {
+    background: transparent;
+    user-select: none;
+    cursor: default;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    cursor: text;
+  }
+
+  ::selection {
+    background: rgba(255, 255, 255, 0.28);
+    color: #fff;
+  }
+
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Thin monochrome scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Native date input in dark */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.6;
+    cursor: pointer;
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.urgent-pulse {
+  animation: soft-pulse 1.8s ease-in-out infinite;
+}
+
+[data-reduce-motion="true"] .urgent-pulse {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .urgent-pulse {
+    animation: none;
+  }
+}
