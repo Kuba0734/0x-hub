@@ -155,7 +155,7 @@ pub fn import(state: &AppState, source: &Path, password: &str) -> AppResult<()> 
         {
             let conn = state.db();
             keystore::reset_failures(&conn)?;
-            db::search::rebuild(&conn, &dek)?;
+            db::on_unlock(&conn, &dek)?;
         }
         state.set_key(Some(dek));
         state.touch();
@@ -243,7 +243,7 @@ mod tests {
                 title: "Tax 2025".into(),
                 ..Default::default()
             },
-            category_id: Some("taxes".into()),
+            folder_id: Some("taxes".into()),
             reminder_offsets: vec![],
         };
         documents::insert(&a.db(), &key, &doc, 1).unwrap();

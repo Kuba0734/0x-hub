@@ -8,7 +8,7 @@ const doc = (id: string, expiresOn: string | null, reminderOffsets: number[]): D
   mime: "",
   kind: "pdf",
   size: 0,
-  categoryId: null,
+  folderId: null,
   tags: [],
   description: "",
   expiresOn,

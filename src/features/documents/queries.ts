@@ -9,7 +9,7 @@ export const docKeys = {
   ocr: (id: string) => ["documents", "ocr", id] as const,
   content: (id: string) => ["documents", "content", id] as const,
   preview: (id: string, max: number) => ["documents", "preview", id, max] as const,
-  categories: ["categories"] as const,
+  folders: ["folders"] as const,
 };
 
 export function useDocuments(trashed = false) {
@@ -20,8 +20,8 @@ export function useDocument(id: string) {
   return useQuery({ queryKey: docKeys.one(id), queryFn: () => ipc.documents.get(id) });
 }
 
-export function useCategories() {
-  return useQuery({ queryKey: docKeys.categories, queryFn: ipc.categories.list });
+export function useFolders() {
+  return useQuery({ queryKey: docKeys.folders, queryFn: ipc.folders.list });
 }
 
 export function useOcrText(id: string, enabled: boolean) {
@@ -82,7 +82,7 @@ export function useUpdateDocument() {
         list?.map((d) => (d.id === doc.id ? doc : d)),
       );
       void qc.invalidateQueries({ queryKey: ["overview"] });
-      void qc.invalidateQueries({ queryKey: docKeys.categories });
+      void qc.invalidateQueries({ queryKey: docKeys.folders });
     },
     onError: (e) => toast.error(toIpcError(e).message),
   });
@@ -94,7 +94,7 @@ export function useDocumentLifecycle() {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: docKeys.all });
     void qc.invalidateQueries({ queryKey: ["overview"] });
-    void qc.invalidateQueries({ queryKey: docKeys.categories });
+    void qc.invalidateQueries({ queryKey: docKeys.folders });
   };
   const onError = (e: unknown) => toast.error(toIpcError(e).message);
   return {

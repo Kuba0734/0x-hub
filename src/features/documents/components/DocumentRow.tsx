@@ -5,7 +5,8 @@ import { GlassContextMenu, type MenuItem } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
 import { AnimatedCheck } from "@/components/ui/AnimatedCheck";
 import { cn, formatBytes, relativeTime } from "@/lib/format";
-import type { Category, DocumentItem } from "@/lib/ipc";
+import type { PointerEvent } from "react";
+import type { DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import type { SelectableProps } from "./DocumentCard";
 import { ExpiryBadge } from "./ExpiryBadge";
@@ -13,12 +14,24 @@ import { KindIcon } from "./Thumbnail";
 
 interface Props extends SelectableProps {
   doc: DocumentItem;
-  category?: Category;
+  /** Folder path, shown when results come from several folders. */
+  folderLabel?: string;
+  /** Begins a drag onto a folder (see useDocumentDrag). */
+  onPointerDown?: (e: PointerEvent) => void;
   menu: MenuItem[];
   fresh?: boolean;
 }
 
-export function DocumentRow({ doc, category, menu, fresh, selected, selecting, onSelect }: Props) {
+export function DocumentRow({
+  doc,
+  folderLabel,
+  onPointerDown,
+  menu,
+  fresh,
+  selected,
+  selecting,
+  onSelect,
+}: Props) {
   const navigate = useNavigate();
   return (
     <motion.div
@@ -47,6 +60,7 @@ export function DocumentRow({ doc, category, menu, fresh, selected, selecting, o
         <button
           type="button"
           aria-pressed={selecting ? selected : undefined}
+          onPointerDown={onPointerDown}
           onClick={(e) =>
             e.ctrlKey || e.metaKey || e.shiftKey || selecting
               ? onSelect(e)
@@ -70,9 +84,7 @@ export function DocumentRow({ doc, category, menu, fresh, selected, selecting, o
               <Pin className="h-3 w-3 shrink-0 text-fg-2" aria-label={strings.common.pinned} />
             )}
           </span>
-          <span className="truncate text-fg-2">
-            {category?.name ?? strings.documents.uncategorized}
-          </span>
+          <span className="truncate text-fg-2">{folderLabel ?? "—"}</span>
           <span>
             {doc.expiresOn ? (
               <ExpiryBadge date={doc.expiresOn} />

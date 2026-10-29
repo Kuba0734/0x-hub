@@ -86,7 +86,8 @@ export interface DocumentItem {
   mime: string;
   kind: DocumentKind;
   size: number;
-  categoryId: string | null;
+  /** Folder the document is in; null = top level. */
+  folderId: string | null;
   tags: string[];
   description: string;
   expiresOn: string | null;
@@ -103,10 +104,10 @@ export interface DocumentItem {
   revealed: boolean;
 }
 
-/** Empty string for `categoryId` / `expiresOn` clears the value. */
+/** Empty string for `folderId` (= move to top level) / `expiresOn` clears the value. */
 export interface DocumentPatch {
   title?: string;
-  categoryId?: string;
+  folderId?: string;
   tags?: string[];
   description?: string;
   expiresOn?: string;
@@ -115,10 +116,15 @@ export interface DocumentPatch {
   locked?: boolean;
 }
 
-export interface Category {
+/** A folder ("document package"); folders nest. */
+export interface Folder {
   id: string;
+  /** null = top level. */
+  parentId: string | null;
   name: string;
   sort: number;
+  createdAt: number;
+  /** Documents directly inside (not in subfolders). */
   documentCount: number;
 }
 
@@ -329,8 +335,9 @@ export const ipc = {
   documents: {
     list: (trashed = false) => call<DocumentItem[]>("documents_list", { trashed }),
     get: (id: string) => call<DocumentItem>("document_get", { id }),
-    import: (paths: string[], categoryId?: string | null) =>
-      call<ImportResult>("documents_import", { paths, categoryId: categoryId ?? null }),
+    /** Imports into `folderId` (null = top level). */
+    import: (paths: string[], folderId?: string | null) =>
+      call<ImportResult>("documents_import", { paths, folderId: folderId ?? null }),
     update: (id: string, patch: DocumentPatch) =>
       call<DocumentItem>("document_update", { id, patch }),
     trash: (id: string) => call<void>("document_trash", { id }),
@@ -373,11 +380,14 @@ export const ipc = {
         path,
       }),
   },
-  categories: {
-    list: () => call<Category[]>("categories_list"),
-    create: (name: string) => call<Category>("category_create", { name }),
-    rename: (id: string, name: string) => call<void>("category_rename", { id, name }),
-    delete: (id: string) => call<void>("category_delete", { id }),
+  folders: {
+    list: () => call<Folder[]>("folders_list"),
+    create: (name: string, parentId: string | null) =>
+      call<Folder>("folder_create", { name, parentId }),
+    rename: (id: string, name: string) => call<void>("folder_rename", { id, name }),
+    move: (id: string, parentId: string | null) => call<void>("folder_move", { id, parentId }),
+    /** Documents and subfolders inside move up one level. */
+    delete: (id: string) => call<void>("folder_delete", { id }),
   },
   notes: {
     list: (trashed = false) => call<Note[]>("notes_list", { trashed }),

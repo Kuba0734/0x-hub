@@ -213,7 +213,7 @@ mod tests {
             kind: "text".into(),
             size: 5,
             meta: DocumentMeta::default(),
-            category_id: None,
+            folder_id: None,
             reminder_offsets: vec![],
         };
         documents::insert(&a.db(), &key, &doc, 1).unwrap();

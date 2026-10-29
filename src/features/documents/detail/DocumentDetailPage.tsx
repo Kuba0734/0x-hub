@@ -16,7 +16,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { strings } from "@/lib/strings";
 import { useRevealSession } from "@/lib/useRevealSession";
 import { toast } from "@/stores/toasts";
-import { useCategories, useDocument, useDocumentLifecycle, useUpdateDocument } from "../queries";
+import { buildTree } from "../folders/folderTree";
+import { useDocument, useDocumentLifecycle, useFolders, useUpdateDocument } from "../queries";
 import { exportDocument, openExternally } from "../useDocumentActions";
 import { DocumentTools } from "./DocumentTools";
 import { LockedGate } from "./LockedGate";
@@ -43,7 +44,7 @@ export function DocumentDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const { data: doc, isLoading, error, refetch } = useDocument(id);
-  const categories = useCategories();
+  const folders = useFolders();
   const update = useUpdateDocument();
   const { trash } = useDocumentLifecycle();
   useRevealSession(doc?.id, doc?.locked ?? false);
@@ -145,7 +146,12 @@ export function DocumentDetailPage() {
             <PreviewPane doc={doc} />
           </GlassPanel>
           <GlassPanel refract={false} className="w-[360px] shrink-0 overflow-y-auto p-5">
-            <MetaPanel key={doc.id} doc={doc} categories={categories.data ?? []} onPatch={patch} />
+            <MetaPanel
+              key={doc.id}
+              doc={doc}
+              tree={buildTree(folders.data ?? [])}
+              onPatch={patch}
+            />
           </GlassPanel>
         </div>
       )}

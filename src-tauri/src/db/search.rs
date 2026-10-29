@@ -187,7 +187,7 @@ mod tests {
                 description: "pin 4711".into(),
                 ..Default::default()
             },
-            category_id: None,
+            folder_id: None,
             reminder_offsets: vec![],
         };
         documents::insert(&conn, &key, &new, 1).unwrap();

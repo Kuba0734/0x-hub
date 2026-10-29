@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileUp, SearchX, Upload } from "lucide-react";
+import { FileUp, FolderOpen, SearchX, Upload } from "lucide-react";
 import { GlassButton } from "@/components/glass";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SkeletonGrid } from "@/components/ui/Skeleton";
+import type { DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { useUi } from "@/stores/ui";
-import { CategoriesDialog } from "./components/CategoriesDialog";
 import { DocumentCollection } from "./components/DocumentCollection";
 import { DocumentsToolbar } from "./components/DocumentsToolbar";
 import { DropOverlay, FlyingChips } from "./components/DropZone";
 import { TrashList } from "./components/TrashList";
-import { allTags, applyFilters, defaultFilters, type DocFilters } from "./filters";
-import { useCategories, useDocuments } from "./queries";
+import { allTags, applyFilters, defaultFilters, isSearching, type DocFilters } from "./filters";
+import { DragGhost } from "./folders/DragGhost";
+import { FolderPicker } from "./folders/FolderPicker";
+import { FolderSection } from "./folders/FolderSection";
+import { childrenOf, docsIn, pathLabel } from "./folders/folderTree";
+import { useCurrentFolder } from "./folders/useCurrentFolder";
+import { useDocumentDrag } from "./folders/useDocumentDrag";
+import { useFolderActions } from "./folders/useFolderActions";
+import { useDocuments } from "./queries";
 import { useDocumentActions } from "./useDocumentActions";
 import { useDocumentImport } from "./useDocumentImport";
 import { PhoneUploadDialog } from "./phone/PhoneUploadDialog";
@@ -30,27 +37,28 @@ export function DocumentsPage() {
   const [view, setView] = useState<"grid" | "list">(() =>
     localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid",
   );
-  const [manage, setManage] = useState(false);
   const [phone, setPhone] = useState(false);
+  const [moveDoc, setMoveDoc] = useState<DocumentItem | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const docs = useDocuments(false);
-  const categories = useCategories();
-  const menuFor = useDocumentActions();
-  const importCategory =
-    filters.categoryId !== "all" && filters.categoryId !== "none" ? filters.categoryId : null;
+  const { tree, current, open } = useCurrentFolder();
+  const folderActions = useFolderActions();
+  const menuFor = useDocumentActions(setMoveDoc);
   const getTarget = useCallback(() => {
     const r = gridRef.current?.getBoundingClientRect();
     return r ? { x: r.left + 24, y: r.top + 24 } : { x: 300, y: 200 };
   }, []);
-  const imp = useDocumentImport(importCategory, getTarget);
+  // New files land in the folder you're looking at.
+  const imp = useDocumentImport(current, getTarget);
 
-  const catById = useMemo(
-    () => new Map((categories.data ?? []).map((c) => [c.id, c])),
-    [categories.data],
-  );
+  const searching = isSearching(filters);
   const tags = useMemo(() => allTags(docs.data ?? []), [docs.data]);
-  const visible = useMemo(() => applyFilters(docs.data ?? [], filters), [docs.data, filters]);
+  const visible = useMemo(() => {
+    const filtered = applyFilters(docs.data ?? [], filters);
+    return searching ? filtered : docsIn(filtered, current);
+  }, [docs.data, filters, searching, current]);
+  const folderName = (id: string) => (id ? (tree.byId.get(id)?.name ?? "") : s.folders.root);
 
   useEffect(() => localStorage.setItem(VIEW_KEY, view), [view]);
 
@@ -58,6 +66,10 @@ export function DocumentsPage() {
   const order = useMemo(() => visible.map((d) => d.id), [visible]);
   const selectedDocs = visible.filter((d) => selection.selected.has(d.id));
   const { selectAll, clear } = selection;
+
+  const drag = useDocumentDrag((moved, target) => {
+    void folderActions.moveDocs(moved, target || null, folderName(target)).then(clear);
+  });
 
   // Ctrl+A selects everything visible, Escape clears (not while typing in a field).
   useEffect(() => {
@@ -74,6 +86,9 @@ export function DocumentsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [tab, order, selectAll, clear]);
 
+  // Switching folders starts a fresh selection.
+  useEffect(() => clear(), [current, clear]);
+
   // "Upload document" from the palette or overview.
   const pendingUpload = useUi((st) => st.pendingUpload);
   const consumeUpload = useUi((st) => st.consumeUpload);
@@ -86,7 +101,7 @@ export function DocumentsPage() {
     if (docs.isLoading) return <SkeletonGrid />;
     if (docs.error)
       return <ErrorState message={docs.error.message} onRetry={() => void docs.refetch()} />;
-    if (!docs.data?.length)
+    if (!docs.data?.length && tree.byId.size === 0)
       return (
         <EmptyState
           icon={<FileUp />}
@@ -99,12 +114,23 @@ export function DocumentsPage() {
           }
         />
       );
-    if (!visible.length) return <EmptyState icon={<SearchX />} title={s.noMatches} />;
+    if (!visible.length) {
+      if (searching) return <EmptyState icon={<SearchX />} title={s.noMatches} />;
+      if (childrenOf(tree, current).length) return null;
+      return (
+        <EmptyState
+          icon={<FolderOpen />}
+          title={s.folders.emptyFolder}
+          body={s.folders.emptyFolderBody}
+        />
+      );
+    }
     return (
       <DocumentCollection
         docs={visible}
         view={view}
-        categories={catById}
+        folderLabel={searching ? (d) => pathLabel(tree, d.folderId) || s.folders.root : undefined}
+        onDragStart={(e, d) => drag.start(e, selection.selected.has(d.id) ? selectedDocs : [d])}
         menuFor={menuFor}
         fresh={imp.fresh}
         selected={selection.selected}
@@ -143,34 +169,53 @@ export function DocumentsPage() {
             <DocumentsToolbar
               filters={filters}
               onChange={setFilters}
-              categories={categories.data ?? []}
               tags={tags}
               view={view}
               onView={setView}
               onUpload={() => void imp.pick()}
               onPhone={() => setPhone(true)}
-              onManageCategories={() => setManage(true)}
             />
-            <div className="mt-5">{content}</div>
+            <div className="mt-4">
+              <FolderSection
+                tree={tree}
+                current={current}
+                dropOver={drag.state?.over}
+                showFolders={!searching}
+                onOpen={open}
+              />
+            </div>
+            {searching && (
+              <p className="mt-3 text-[12px] text-fg-3" aria-live="polite">
+                {s.folders.searchAll}
+              </p>
+            )}
+            <div className="mt-4">{content}</div>
           </>
         )}
       </div>
       {tab === "active" && (
         <SelectionBar
           docs={selectedDocs}
-          categories={categories.data ?? []}
+          tree={tree}
           onSelectAll={() => selectAll(order)}
           onClear={clear}
         />
       )}
+      <FolderPicker
+        open={moveDoc !== null}
+        title={s.folders.moveDocs(1)}
+        tree={tree}
+        isAllowed={(t) => (moveDoc?.folderId ?? null) !== t}
+        onClose={() => setMoveDoc(null)}
+        onPick={(target, label) => moveDoc && void folderActions.moveDocs([moveDoc], target, label)}
+      />
+      <DragGhost
+        drag={drag.state}
+        targetName={drag.state?.over !== undefined ? folderName(drag.state.over) : undefined}
+      />
       <DropOverlay drag={imp.drag} />
       <FlyingChips flying={imp.flying} onDone={imp.clearFlying} />
       <PhoneUploadDialog open={phone} onClose={() => setPhone(false)} />
-      <CategoriesDialog
-        open={manage}
-        onClose={() => setManage(false)}
-        categories={categories.data ?? []}
-      />
     </div>
   );
 }

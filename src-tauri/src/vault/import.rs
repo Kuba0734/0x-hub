@@ -44,7 +44,7 @@ fn title_from(filename: &str) -> String {
     }
 }
 
-pub fn import_one(state: &AppState, path: &str, category_id: Option<&str>) -> AppResult<String> {
+pub fn import_one(state: &AppState, path: &str, folder_id: Option<&str>) -> AppResult<String> {
     state.key()?;
     let p = std::path::Path::new(path);
     let filename = p
@@ -55,7 +55,7 @@ pub fn import_one(state: &AppState, path: &str, category_id: Option<&str>) -> Ap
         return Err(too_large());
     }
     let bytes = std::fs::read(p)?;
-    import_bytes(state, &filename, &bytes, category_id)
+    import_bytes(state, &filename, &bytes, folder_id)
 }
 
 fn too_large() -> AppError {
@@ -67,7 +67,7 @@ pub fn import_bytes(
     state: &AppState,
     filename: &str,
     bytes: &[u8],
-    category_id: Option<&str>,
+    folder_id: Option<&str>,
 ) -> AppResult<String> {
     let key = state.key()?;
     if bytes.len() as u64 > MAX_FILE_BYTES {
@@ -92,7 +92,7 @@ pub fn import_bytes(
             tags: vec![],
             description: String::new(),
         },
-        category_id: category_id.map(str::to_string),
+        folder_id: folder_id.map(str::to_string),
         reminder_offsets: offsets,
     };
     if let Err(e) = documents::insert(&conn, &key, &doc, db::now_ms()) {
@@ -111,7 +111,7 @@ pub fn import_files(
     app: &AppHandle,
     state: &AppState,
     paths: &[String],
-    category_id: Option<&str>,
+    folder_id: Option<&str>,
 ) -> ImportResult {
     let mut result = ImportResult::default();
     let total = paths.len();
@@ -128,7 +128,7 @@ pub fn import_files(
                 name: name.clone(),
             },
         );
-        match import_one(state, path, category_id) {
+        match import_one(state, path, folder_id) {
             Ok(id) => result.imported.push(id),
             Err(e) => result.failed.push(ImportFailure {
                 name,

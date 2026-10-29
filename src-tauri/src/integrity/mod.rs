@@ -13,7 +13,7 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::backup;
 use crate::crypto::{self, SecretKey};
-use crate::db::{self, documents, integrity as repo, notes, settings, signatures};
+use crate::db::{self, documents, folders, integrity as repo, notes, settings, signatures};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
@@ -116,12 +116,13 @@ pub fn check_vault(
     mut progress: impl FnMut(usize, usize),
 ) -> AppResult<Report> {
     let started = db::now_ms();
-    let (docs, note_rows, sig_rows, quick) = {
+    let (docs, note_rows, sig_rows, folder_rows, quick) = {
         let conn = state.db();
         (
             repo::document_rows(&conn)?,
             repo::sealed_rows(&conn, "notes")?,
             repo::sealed_rows(&conn, "signatures")?,
+            repo::sealed_rows(&conn, "folders")?,
             repo::quick_check(&conn)?,
         )
     };
@@ -135,7 +136,7 @@ pub fn check_vault(
         });
     }
 
-    let total = docs.len() + note_rows.len() + sig_rows.len();
+    let total = docs.len() + note_rows.len() + sig_rows.len() + folder_rows.len();
     let mut done = 0;
     for d in &docs {
         if !state.is_unlocked() {
@@ -169,6 +170,14 @@ pub fn check_vault(
                 id,
                 Some("signature".into()),
             ));
+        }
+        done += 1;
+        progress(done, total);
+    }
+
+    for (id, name) in &folder_rows {
+        if crypto::decrypt(key, name, &folders::aad(id)).is_err() {
+            problems.push(item(ProblemKind::DamagedRecord, id, Some("folder".into())));
         }
         done += 1;
         progress(done, total);
@@ -340,7 +349,7 @@ mod tests {
             kind: "text".into(),
             size: body.len() as i64,
             meta: DocumentMeta::default(),
-            category_id: None,
+            folder_id: None,
             reminder_offsets: vec![],
         };
         documents::insert(&state.db(), key, &doc, 1).unwrap();
@@ -377,7 +386,8 @@ mod tests {
 
         let mut calls = 0;
         let r = check_vault(&state, &key, |_, _| calls += 1).unwrap();
-        assert_eq!(calls, 5);
+        // 4 documents, 1 signature and the 7 default folders created at setup.
+        assert_eq!(calls, 12);
         let kind_of = |id: &str| {
             r.problems
                 .iter()

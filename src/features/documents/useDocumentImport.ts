@@ -26,7 +26,7 @@ export interface FlyingFiles {
  * `getTarget` returns where dropped files should fly to (read at drop time).
  */
 export function useDocumentImport(
-  categoryId: string | null,
+  folderId: string | null,
   getTarget: () => { x: number; y: number },
 ) {
   const qc = useQueryClient();
@@ -40,7 +40,7 @@ export function useDocumentImport(
       if (paths.length === 0) return;
       setProgress({ done: 0, total: paths.length, name: "" });
       try {
-        const result = await ipc.documents.import(paths, categoryId);
+        const result = await ipc.documents.import(paths, folderId);
         setFresh(new Set(result.imported));
         if (result.imported.length) toast.show(strings.documents.imported(result.imported.length));
         result.failed.forEach((f) =>
@@ -54,7 +54,7 @@ export function useDocumentImport(
         setProgress(null);
       }
     },
-    [categoryId, qc],
+    [folderId, qc],
   );
 
   useEffect(

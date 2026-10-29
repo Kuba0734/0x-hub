@@ -75,7 +75,7 @@ pub fn setup(state: &AppState, password: &str) -> AppResult<Zeroizing<String>> {
     {
         let conn = state.db();
         keystore::insert(&conn, &row)?;
-        search::rebuild(&conn, &dek)?;
+        db::on_unlock(&conn, &dek)?;
     }
     state.set_key(Some(dek));
     state.touch();
@@ -86,7 +86,7 @@ fn finish_unlock(state: &AppState, dek: SecretKey) -> AppResult<()> {
     {
         let conn = state.db();
         keystore::reset_failures(&conn)?;
-        search::rebuild(&conn, &dek)?;
+        db::on_unlock(&conn, &dek)?;
     }
     state.set_key(Some(dek));
     state.touch();

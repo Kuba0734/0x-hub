@@ -28,7 +28,7 @@ pub struct Document {
     pub mime: String,
     pub kind: String,
     pub size: i64,
-    pub category_id: Option<String>,
+    pub folder_id: Option<String>,
     pub tags: Vec<String>,
     pub description: String,
     pub expires_on: Option<String>,
@@ -56,12 +56,13 @@ impl Document {
     }
 }
 
-/// Partial update. Empty strings for `category_id` / `expires_on` clear the value.
+/// Partial update. Empty strings for `folder_id` / `expires_on` clear the value
+/// (`folder_id` "" = top level).
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DocumentPatch {
     pub title: Option<String>,
-    pub category_id: Option<String>,
+    pub folder_id: Option<String>,
     pub tags: Option<Vec<String>>,
     pub description: Option<String>,
     pub expires_on: Option<String>,
@@ -75,7 +76,7 @@ pub struct NewDocument {
     pub kind: String,
     pub size: i64,
     pub meta: DocumentMeta,
-    pub category_id: Option<String>,
+    pub folder_id: Option<String>,
     pub reminder_offsets: Vec<u32>,
 }
 
@@ -126,11 +127,11 @@ pub fn classify(filename: &str) -> (&'static str, &'static str) {
 pub fn insert(conn: &Connection, key: &SecretKey, d: &NewDocument, now: i64) -> AppResult<()> {
     let meta = crypto::seal_json(key, &d.meta, &meta_aad(&d.id))?;
     conn.execute(
-        "INSERT INTO documents (id, category_id, kind, size, meta, reminder_offsets, created_at, updated_at)
+        "INSERT INTO documents (id, folder_id, kind, size, meta, reminder_offsets, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
         params![
             d.id,
-            d.category_id,
+            d.folder_id,
             d.kind,
             d.size,
             meta,
@@ -141,12 +142,12 @@ pub fn insert(conn: &Connection, key: &SecretKey, d: &NewDocument, now: i64) -> 
     Ok(())
 }
 
-const COLUMNS: &str = "id, category_id, kind, size, meta, ocr_status, expires_on, reminder_offsets,
+const COLUMNS: &str = "id, folder_id, kind, size, meta, ocr_status, expires_on, reminder_offsets,
                        pinned, created_at, updated_at, deleted_at, locked";
 
 struct RawRow {
     id: String,
-    category_id: Option<String>,
+    folder_id: Option<String>,
     kind: String,
     size: i64,
     meta: Vec<u8>,
@@ -163,7 +164,7 @@ struct RawRow {
 fn raw(r: &Row) -> rusqlite::Result<RawRow> {
     Ok(RawRow {
         id: r.get(0)?,
-        category_id: r.get(1)?,
+        folder_id: r.get(1)?,
         kind: r.get(2)?,
         size: r.get(3)?,
         meta: r.get(4)?,
@@ -189,7 +190,7 @@ fn hydrate(key: &SecretKey, r: RawRow, links: Vec<String>) -> AppResult<Document
         id: r.id,
         kind: r.kind,
         size: r.size,
-        category_id: r.category_id,
+        folder_id: r.folder_id,
         expires_on: r.expires_on,
         reminder_offsets: serde_json::from_str(&r.reminder_offsets).unwrap_or_default(),
         pinned: r.pinned,
@@ -283,10 +284,10 @@ pub fn update(
             params![sealed, id],
         )?;
     }
-    if let Some(cat) = p.category_id {
+    if let Some(cat) = p.folder_id {
         let v = if cat.is_empty() { None } else { Some(cat) };
         conn.execute(
-            "UPDATE documents SET category_id = ?1 WHERE id = ?2",
+            "UPDATE documents SET folder_id = ?1 WHERE id = ?2",
             params![v, id],
         )?;
     }
@@ -533,7 +534,7 @@ mod tests {
                 tags: vec!["travel".into()],
                 description: String::new(),
             },
-            category_id: Some("ids".into()),
+            folder_id: None,
             reminder_offsets: vec![90, 30],
         }
     }
@@ -553,18 +554,37 @@ mod tests {
         assert_eq!(doc.title, "Passport");
         assert_eq!(doc.reminder_offsets, vec![90, 30]);
 
+        // Into a folder (the converted "IDs" category), then back to the top level.
+        crate::db::folders::adopt_categories(&conn, &key, 1).unwrap();
+        let into = DocumentPatch {
+            folder_id: Some("ids".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            update(&conn, &key, "d1", into, 2)
+                .unwrap()
+                .folder_id
+                .as_deref(),
+            Some("ids")
+        );
+        let missing = DocumentPatch {
+            folder_id: Some("no-such-folder".into()),
+            ..Default::default()
+        };
+        assert!(update(&conn, &key, "d1", missing, 2).is_err());
+
         let patch = DocumentPatch {
             title: Some("Passport (renewed)".into()),
             tags: Some(vec!["#Travel".into(), "id".into(), "travel".into()]),
             expires_on: Some("2030-01-31".into()),
-            category_id: Some(String::new()),
+            folder_id: Some(String::new()),
             ..Default::default()
         };
         let doc = update(&conn, &key, "d1", patch, 2).unwrap();
         assert_eq!(doc.title, "Passport (renewed)");
         assert_eq!(doc.tags, vec!["travel", "id"]);
         assert_eq!(doc.expires_on.as_deref(), Some("2030-01-31"));
-        assert_eq!(doc.category_id, None);
+        assert_eq!(doc.folder_id, None);
 
         let bad = DocumentPatch {
             expires_on: Some("31.01.2030".into()),

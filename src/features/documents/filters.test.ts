@@ -1,5 +1,5 @@
 import type { DocumentItem } from "@/lib/ipc";
-import { allTags, applyFilters, defaultFilters } from "./filters";
+import { allTags, applyFilters, defaultFilters, isSearching } from "./filters";
 
 const base: DocumentItem = {
   id: "",
@@ -8,7 +8,7 @@ const base: DocumentItem = {
   mime: "",
   kind: "pdf",
   size: 0,
-  categoryId: null,
+  folderId: null,
   tags: [],
   description: "",
   expiresOn: null,
@@ -28,7 +28,7 @@ const docs: DocumentItem[] = [
     ...base,
     id: "a",
     title: "Passport",
-    categoryId: "ids",
+    folderId: "ids",
     tags: ["travel"],
     expiresOn: "2026-01-20",
     updatedAt: 1,
@@ -37,7 +37,7 @@ const docs: DocumentItem[] = [
     ...base,
     id: "b",
     title: "Car insurance",
-    categoryId: "insurance",
+    folderId: "insurance",
     expiresOn: "2025-12-01",
     updatedAt: 3,
     size: 9,
@@ -46,7 +46,7 @@ const docs: DocumentItem[] = [
     ...base,
     id: "c",
     title: "Tax 2025",
-    categoryId: "taxes",
+    folderId: "taxes",
     tags: ["2025", "travel"],
     updatedAt: 2,
     pinned: true,
@@ -66,10 +66,7 @@ describe("applyFilters", () => {
     ).toEqual(["c", "b", "a"]);
   });
 
-  it("filters by category, tag, text and expiry", () => {
-    expect(
-      applyFilters(docs, { ...defaultFilters, categoryId: "ids" }, today).map((d) => d.id),
-    ).toEqual(["a"]);
+  it("filters by tag, text and expiry", () => {
     expect(
       applyFilters(docs, { ...defaultFilters, tag: "travel" }, today).map((d) => d.id),
     ).toEqual(["c", "a"]);
@@ -85,6 +82,14 @@ describe("applyFilters", () => {
     expect(
       applyFilters(docs, { ...defaultFilters, expiry: "none" }, today).map((d) => d.id),
     ).toEqual(["c"]);
+  });
+
+  it("searches across folders only when a filter is set", () => {
+    expect(isSearching(defaultFilters)).toBe(false);
+    expect(isSearching({ ...defaultFilters, sort: "title" })).toBe(false);
+    expect(isSearching({ ...defaultFilters, text: " a " })).toBe(true);
+    expect(isSearching({ ...defaultFilters, tag: "travel" })).toBe(true);
+    expect(isSearching({ ...defaultFilters, expiry: "soon" })).toBe(true);
   });
 
   it("collects tags", () => {

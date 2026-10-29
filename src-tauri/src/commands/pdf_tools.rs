@@ -68,7 +68,7 @@ fn changed(app: &AppHandle) {
     let _ = app.emit("documents://changed", ());
 }
 
-/// Stores `pdf` as a new document that inherits category, tags and lock from `like`.
+/// Stores `pdf` as a new document that inherits folder, tags and lock from `like`.
 fn store_copy(
     state: &AppState,
     like: &documents::Document,
@@ -80,7 +80,7 @@ fn store_copy(
         return Err(AppError::Invalid("A title is required".into()));
     }
     let filename = format!("{}.pdf", vault::safe_filename(title));
-    let id = vault::import::import_bytes(state, &filename, pdf, like.category_id.as_deref())?;
+    let id = vault::import::import_bytes(state, &filename, pdf, like.folder_id.as_deref())?;
     let key = state.key()?;
     let conn = state.db();
     let doc = documents::update(

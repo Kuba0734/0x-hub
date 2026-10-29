@@ -6,7 +6,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type {
   AppSettings,
-  Category,
+  Folder,
   DocumentItem,
   IntegrityReport,
   Note,
@@ -21,7 +21,7 @@ const iso = (offsetDays: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const categories: Category[] = [
+let folders: Omit<Folder, "documentCount">[] = [
   "IDs",
   "Contracts",
   "Insurance",
@@ -29,7 +29,8 @@ const categories: Category[] = [
   "Medical",
   "Finance",
   "Other",
-].map((name, sort) => ({ id: name.toLowerCase(), name, sort, documentCount: 0 }));
+].map((name, sort) => ({ id: name.toLowerCase(), parentId: null, name, sort, createdAt: 0 }));
+folders.push({ id: "car", parentId: "insurance", name: "Car", sort: 0, createdAt: 0 });
 
 const doc = (
   id: string,
@@ -44,7 +45,7 @@ const doc = (
   mime: kind === "image" ? "image/jpeg" : "application/pdf",
   kind,
   size: 180_000 + id.length * 91_000,
-  categoryId: cat,
+  folderId: cat,
   tags: [],
   description: "",
   expiresOn: null,
@@ -263,11 +264,40 @@ export function installMockBackend() {
         return args.trashed ? [] : documents;
       case "document_get":
         return documents.find((d) => d.id === args.id);
-      case "categories_list":
-        return categories.map((c) => ({
-          ...c,
-          documentCount: documents.filter((d) => d.categoryId === c.id).length,
+      case "folders_list":
+        return folders.map((f) => ({
+          ...f,
+          documentCount: documents.filter((d) => d.folderId === f.id).length,
         }));
+      case "folder_create": {
+        const f = {
+          id: crypto.randomUUID(),
+          parentId: (args.parentId as string | null) ?? null,
+          name: String(args.name),
+          sort: folders.length,
+          createdAt: Date.now(),
+        };
+        folders.push(f);
+        return { ...f, documentCount: 0 };
+      }
+      case "folder_rename": {
+        const f = folders.find((x) => x.id === args.id);
+        if (f) f.name = String(args.name);
+        return null;
+      }
+      case "folder_move": {
+        const f = folders.find((x) => x.id === args.id);
+        if (f) f.parentId = (args.parentId as string | null) ?? null;
+        return null;
+      }
+      case "folder_delete": {
+        const f = folders.find((x) => x.id === args.id);
+        if (!f) return null;
+        documents.forEach((d) => d.folderId === f.id && (d.folderId = f.parentId));
+        folders.forEach((x) => x.parentId === f.id && (x.parentId = f.parentId));
+        folders = folders.filter((x) => x.id !== f.id);
+        return null;
+      }
       case "notes_list":
         return args.trashed ? [] : notes.map(hideLocked);
       case "note_get": {

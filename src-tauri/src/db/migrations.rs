@@ -103,6 +103,22 @@ pub fn migrations() -> Migrations<'static> {
             );
             "#,
         ),
+        // 6: folders (nested) replace categories; names are encrypted, so existing
+        // categories are converted after unlock (`folders::adopt_categories`).
+        M::up(
+            r#"
+            CREATE TABLE folders (
+                id TEXT PRIMARY KEY,
+                parent_id TEXT REFERENCES folders(id) ON DELETE CASCADE,
+                name BLOB NOT NULL,
+                sort INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX idx_folders_parent ON folders(parent_id);
+            ALTER TABLE documents ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL;
+            CREATE INDEX idx_documents_folder ON documents(folder_id);
+            "#,
+        ),
     ])
 }
 
@@ -126,6 +142,6 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 }

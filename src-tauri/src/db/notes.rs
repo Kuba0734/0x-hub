@@ -370,7 +370,7 @@ mod tests {
             kind: "pdf".into(),
             size: 1,
             meta: Default::default(),
-            category_id: None,
+            folder_id: None,
             reminder_offsets: vec![],
         };
         super::super::documents::insert(&conn, &key, &doc, 1).unwrap();

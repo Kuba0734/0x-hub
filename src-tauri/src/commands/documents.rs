@@ -42,7 +42,7 @@ pub async fn documents_import(
     state: St<'_>,
     queue: State<'_, OcrQueue>,
     paths: Vec<String>,
-    category_id: Option<String>,
+    folder_id: Option<String>,
 ) -> AppResult<ImportResult> {
     state.key()?;
     let s = state.inner().clone();
@@ -52,7 +52,7 @@ pub async fn documents_import(
             &a,
             &s,
             &paths,
-            category_id.as_deref(),
+            folder_id.as_deref(),
         ))
     })
     .await?;

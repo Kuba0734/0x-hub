@@ -1,6 +1,7 @@
 import { AnimatePresence } from "motion/react";
 import type { MenuItem } from "@/components/glass";
-import type { Category, DocumentItem } from "@/lib/ipc";
+import type { PointerEvent } from "react";
+import type { DocumentItem } from "@/lib/ipc";
 import type { SelectModifiers } from "../selection/useSelection";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentRow } from "./DocumentRow";
@@ -8,7 +9,10 @@ import { DocumentRow } from "./DocumentRow";
 interface Props {
   docs: DocumentItem[];
   view: "grid" | "list";
-  categories: Map<string, Category>;
+  /** Folder path shown on each document (when browsing results from all folders). */
+  folderLabel?: (doc: DocumentItem) => string;
+  /** Starts dragging this document (and the selection it belongs to) onto a folder. */
+  onDragStart?: (e: PointerEvent, doc: DocumentItem) => void;
   menuFor: (doc: DocumentItem) => MenuItem[];
   fresh: Set<string>;
   selected: Set<string>;
@@ -19,7 +23,8 @@ interface Props {
 export function DocumentCollection({
   docs,
   view,
-  categories,
+  folderLabel,
+  onDragStart,
   menuFor,
   fresh,
   selected,
@@ -28,7 +33,8 @@ export function DocumentCollection({
   const selecting = selected.size > 0;
   const common = (d: DocumentItem) => ({
     doc: d,
-    category: d.categoryId ? categories.get(d.categoryId) : undefined,
+    folderLabel: folderLabel?.(d),
+    onPointerDown: onDragStart ? (e: PointerEvent) => onDragStart(e, d) : undefined,
     menu: menuFor(d),
     fresh: fresh.has(d.id),
     selected: selected.has(d.id),

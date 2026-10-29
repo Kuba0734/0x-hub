@@ -1,9 +1,21 @@
 import { AnimatePresence } from "motion/react";
 import { useState } from "react";
-import { CheckCheck, Download, FileStack, Lock, Pin, Tag, Trash2, X } from "lucide-react";
-import { GlassButton, GlassPanel, GlassSelect, GlassTooltip } from "@/components/glass";
+import {
+  CheckCheck,
+  Download,
+  FileStack,
+  FolderInput,
+  Lock,
+  Pin,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
+import { GlassButton, GlassPanel, GlassTooltip } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
-import type { Category, DocumentItem } from "@/lib/ipc";
+import type { DocumentItem } from "@/lib/ipc";
+import { FolderPicker } from "../folders/FolderPicker";
+import type { FolderTree } from "../folders/folderTree";
 import { strings } from "@/lib/strings";
 import { CombineDialog } from "./CombineDialog";
 import { TagDialog } from "./TagDialog";
@@ -13,14 +25,15 @@ const s = strings.documents;
 
 interface Props {
   docs: DocumentItem[];
-  categories: Category[];
+  tree: FolderTree;
   onSelectAll: () => void;
   onClear: () => void;
 }
 
 /** Floating glass bar with batch actions while documents are selected. */
-export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) {
+export function SelectionBar({ docs, tree, onSelectAll, onClear }: Props) {
   const batch = useBatchActions();
+  const [moving, setMoving] = useState(false);
   const [tagging, setTagging] = useState(false);
   const [combining, setCombining] = useState(false);
   const allImages = docs.length > 0 && docs.every((d) => d.kind === "image");
@@ -47,17 +60,14 @@ export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) 
               <span className="tabular mr-2 text-[13px] font-medium" aria-live="polite">
                 {s.selected(docs.length)}
               </span>
-              <GlassSelect<string>
+              <GlassButton
                 size="sm"
-                label={s.moveTo}
-                value=""
-                onChange={(v) => v && after(batch.moveTo(docs, v === "none" ? "" : v))}
-                options={[
-                  { value: "", label: s.moveTo },
-                  ...categories.map((c) => ({ value: c.id, label: c.name })),
-                  { value: "none", label: s.uncategorized },
-                ]}
-              />
+                variant="ghost"
+                icon={<FolderInput />}
+                onClick={() => setMoving(true)}
+              >
+                {s.moveTo}
+              </GlassButton>
               <GlassButton
                 size="sm"
                 variant="ghost"
@@ -139,6 +149,13 @@ export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) 
         open={tagging}
         onClose={() => setTagging(false)}
         onAdd={(t) => after(batch.addTag(docs, t))}
+      />
+      <FolderPicker
+        open={moving}
+        title={s.folders.moveDocs(docs.length)}
+        tree={tree}
+        onClose={() => setMoving(false)}
+        onPick={(target, label) => after(batch.moveTo(docs, target ?? "", label))}
       />
       <CombineDialog
         docs={docs}

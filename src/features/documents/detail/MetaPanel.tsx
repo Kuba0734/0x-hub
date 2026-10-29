@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { GlassSelect, GlassTextarea } from "@/components/glass";
 import { formatBytes, formatDateTime } from "@/lib/format";
-import type { Category, DocumentItem, DocumentPatch } from "@/lib/ipc";
+import type { DocumentItem, DocumentPatch } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
+import { flatten, type FolderTree } from "../folders/folderTree";
 import { ExpiryEditor } from "./ExpiryEditor";
 import { LinkedNotes } from "./LinkedNotes";
 import { OcrSection } from "./OcrSection";
@@ -21,23 +22,27 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 interface Props {
   doc: DocumentItem;
-  categories: Category[];
+  tree: FolderTree;
   onPatch: (patch: DocumentPatch) => void;
 }
 
-export function MetaPanel({ doc, categories, onPatch }: Props) {
+export function MetaPanel({ doc, tree, onPatch }: Props) {
   const [description, setDescription] = useState(doc.description);
 
   return (
     <div className="flex flex-col gap-6">
-      <Field label={s.category}>
+      <Field label={s.folder}>
         <GlassSelect<string>
-          label={s.category}
-          value={doc.categoryId ?? ""}
-          onChange={(v) => onPatch({ categoryId: v })}
+          label={s.folder}
+          value={doc.folderId ?? ""}
+          onChange={(v) => onPatch({ folderId: v })}
           options={[
-            { value: "", label: s.uncategorized },
-            ...categories.map((c) => ({ value: c.id, label: c.name })),
+            { value: "", label: s.folders.topLevel },
+            // Indented tree; non-breaking spaces survive in the option labels.
+            ...flatten(tree).map(({ folder, depth }) => ({
+              value: folder.id,
+              label: `${"\u00a0\u00a0\u00a0".repeat(depth)}${folder.name}`,
+            })),
           ]}
           className="w-full"
         />

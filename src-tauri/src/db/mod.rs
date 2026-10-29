@@ -1,5 +1,5 @@
-pub mod categories;
 pub mod documents;
+pub mod folders;
 pub mod integrity;
 pub mod keystore;
 mod migrations;
@@ -37,6 +37,13 @@ fn configure(conn: &mut Connection) -> AppResult<()> {
     migrations().to_latest(conn)?;
     conn.execute_batch("ATTACH DATABASE ':memory:' AS mem;")?;
     Ok(())
+}
+
+/// Work that needs the DEK right after setup, unlock or restore: converts old
+/// categories into folders and rebuilds the in-memory search index.
+pub fn on_unlock(conn: &Connection, key: &crate::crypto::SecretKey) -> AppResult<()> {
+    folders::adopt_categories(conn, key, now_ms())?;
+    search::rebuild(conn, key)
 }
 
 pub fn now_ms() -> i64 {

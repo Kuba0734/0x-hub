@@ -5,7 +5,8 @@ import { GlassCard, GlassContextMenu, type MenuItem } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
 import { AnimatedCheck } from "@/components/ui/AnimatedCheck";
 import { cn, formatBytes } from "@/lib/format";
-import type { Category, DocumentItem } from "@/lib/ipc";
+import type { PointerEvent } from "react";
+import type { DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { useSettings } from "@/stores/settings";
 import type { SelectModifiers } from "../selection/useSelection";
@@ -21,13 +22,25 @@ export interface SelectableProps {
 
 interface Props extends SelectableProps {
   doc: DocumentItem;
-  category?: Category;
+  /** Folder path, shown when results come from several folders. */
+  folderLabel?: string;
+  /** Begins a drag onto a folder (see useDocumentDrag). */
+  onPointerDown?: (e: PointerEvent) => void;
   menu: MenuItem[];
   /** Freshly imported: pops in with a spring as if it flew into the grid. */
   fresh?: boolean;
 }
 
-export function DocumentCard({ doc, category, menu, fresh, selected, selecting, onSelect }: Props) {
+export function DocumentCard({
+  doc,
+  folderLabel,
+  onPointerDown,
+  menu,
+  fresh,
+  selected,
+  selecting,
+  onSelect,
+}: Props) {
   const navigate = useNavigate();
   const blurPreviews = useSettings((st) => st.settings?.blurPreviews ?? true);
   const open = () => navigate(`/documents/${doc.id}`);
@@ -48,6 +61,7 @@ export function DocumentCard({ doc, category, menu, fresh, selected, selecting, 
           tabIndex={0}
           aria-label={doc.title}
           aria-selected={selecting ? selected : undefined}
+          onPointerDown={onPointerDown}
           onClick={(e) =>
             e.ctrlKey || e.metaKey || e.shiftKey || selecting ? onSelect(e) : open()
           }
@@ -87,7 +101,8 @@ export function DocumentCard({ doc, category, menu, fresh, selected, selecting, 
               )}
             </div>
             <p className="truncate text-[12px] text-fg-3">
-              {category?.name ?? strings.documents.uncategorized} · {formatBytes(doc.size)}
+              {folderLabel ? `${folderLabel} · ` : ""}
+              {formatBytes(doc.size)}
             </p>
             {doc.expiresOn && <ExpiryBadge date={doc.expiresOn} className="self-start" />}
           </div>

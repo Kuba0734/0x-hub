@@ -6,7 +6,6 @@ export type SortKey = "updated" | "title" | "expiry" | "size";
 
 export interface DocFilters {
   text: string;
-  categoryId: string | "all" | "none";
   tag: string | null;
   expiry: ExpiryFilter;
   sort: SortKey;
@@ -14,7 +13,6 @@ export interface DocFilters {
 
 export const defaultFilters: DocFilters = {
   text: "",
-  categoryId: "all",
   tag: null,
   expiry: "all",
   sort: "updated",
@@ -28,6 +26,11 @@ function matchesExpiry(d: DocumentItem, f: ExpiryFilter, today: Date): boolean {
   return f === "expired" ? days < 0 : days >= 0 && days <= 30;
 }
 
+/** Text, tag or expiry filters search across all folders instead of browsing one. */
+export function isSearching(f: DocFilters): boolean {
+  return f.text.trim() !== "" || f.tag !== null || f.expiry !== "all";
+}
+
 /** Client-side filtering and sorting over the decrypted list. Pinned items come first. */
 export function applyFilters(
   docs: DocumentItem[],
@@ -36,12 +39,6 @@ export function applyFilters(
 ): DocumentItem[] {
   const text = f.text.trim().toLowerCase();
   const out = docs.filter((d) => {
-    if (
-      f.categoryId === "none"
-        ? d.categoryId !== null
-        : f.categoryId !== "all" && d.categoryId !== f.categoryId
-    )
-      return false;
     if (f.tag && !d.tags.includes(f.tag)) return false;
     if (!matchesExpiry(d, f.expiry, today)) return false;
     if (text) {

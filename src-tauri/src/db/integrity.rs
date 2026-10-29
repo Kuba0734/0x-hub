@@ -28,10 +28,11 @@ pub fn document_rows(conn: &Connection) -> AppResult<Vec<DocumentRow>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-/// `(id, sealed blob)` pairs of a table with an `id` and a `data` column.
+/// `(id, sealed blob)` pairs of notes, signatures or folders (their encrypted column).
 pub fn sealed_rows(conn: &Connection, table: &str) -> AppResult<Vec<(String, Vec<u8>)>> {
     let sql = match table {
         "notes" => "SELECT id, data FROM notes",
+        "folders" => "SELECT id, name FROM folders",
         _ => "SELECT id, data FROM signatures",
     };
     let mut stmt = conn.prepare(sql)?;

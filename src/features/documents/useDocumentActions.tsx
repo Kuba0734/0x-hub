@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import {
   Download,
   ExternalLink,
+  FolderInput,
   FolderOpen,
   Lock,
   LockOpen,
@@ -35,8 +36,8 @@ export async function openExternally(doc: DocumentItem) {
   }
 }
 
-/** Shared context-menu actions for a document. */
-export function useDocumentActions() {
+/** Shared context-menu actions for a document. `onMove` opens the folder picker. */
+export function useDocumentActions(onMove: (doc: DocumentItem) => void) {
   const navigate = useNavigate();
   const update = useUpdateDocument();
   const { trash } = useDocumentLifecycle();
@@ -83,6 +84,11 @@ export function useDocumentActions() {
       label: doc.pinned ? strings.common.unpin : strings.common.pin,
       icon: doc.pinned ? <PinOff /> : <Pin />,
       onSelect: () => update.mutate({ id: doc.id, patch: { pinned: !doc.pinned } }),
+    },
+    {
+      label: strings.documents.moveTo,
+      icon: <FolderInput />,
+      onSelect: () => onMove(doc),
     },
     ...lockItems(doc),
     {

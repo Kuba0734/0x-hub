@@ -172,7 +172,7 @@ Greeting with time of day + date, live clock; stats cards (documents, notes, sto
 ### Documents (vault)
 - Drag & drop + file picker upload; supported: PDF, PNG/JPG/WEBP, DOCX/XLSX/PPTX, TXT, any other file as "generic".
 - Preview: PDF (pdf.js), images (zoom/pan), Office files show metadata + "Open externally".
-- Categories (defaults: IDs, Contracts, Insurance, Taxes, Medical, Finance, Other — user-editable) and free tags.
+- **Folders** ("document packages", nested up to 8 levels, names encrypted; defaults IDs, Contracts, Insurance, Taxes, Medical, Finance, Other) and free tags. Move documents by dragging them onto a folder or breadcrumb, via "Move to…", or in the details panel. Deleting a folder moves its content up a level; nothing is deleted. Old categories are converted into folders once after unlock (`db::folders::adopt_categories`). Text/tag/expiry filters search across all folders.
 - **Expiry date** per document with reminder offsets (e.g. 90/30/7/1 days) → Windows toast notifications, also when the app is in the tray.
 - **Encryption at rest**: every stored file and sensitive DB field is encrypted (see Security).
 - **Full-text search** across title, tags, notes and OCR text (FTS5).
