@@ -1,0 +1,74 @@
+[package]
+name = "zero-x-hub"
+version = "0.1.0"
+description = "0x-hub — encrypted documents, notes and overview for Windows"
+authors = ["Kuba0734"]
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "zero_x_hub_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+window-vibrancy = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite_migration = "1.3"
+aes-gcm = "0.10"
+argon2 = "0.5"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+rand = "0.8"
+base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dependencies.windows]
+version = "0.58"
+features = [
+  "Foundation",
+  "Foundation_Collections",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Data_Pdf",
+  "Storage_Streams",
+  "Security_Credentials_UI",
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_System_Com",
+  "Win32_System_Memory",
+  "Win32_System_WinRT",
+  "Win32_System_RemoteDesktop",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+]
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+# Optimize dependencies in dev so Argon2, SQLite and OCR stay responsive under `pnpm tauri dev`.
+[profile.dev.package."*"]
+opt-level = 2
