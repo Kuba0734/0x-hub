@@ -14,6 +14,7 @@ export type ErrorCode =
   | "wrong_password"
   | "backoff"
   | "not_found"
+  | "document_locked"
   | "invalid"
   | "hello_unavailable"
   | "hello_cancelled"
@@ -96,6 +97,10 @@ export interface DocumentItem {
   updatedAt: number;
   deletedAt: number | null;
   linkedNoteIds: string[];
+  /** Content requires re-confirming identity (password or Windows Hello). */
+  locked: boolean;
+  /** Locked but re-confirmed in the last few minutes. */
+  revealed: boolean;
 }
 
 /** Empty string for `categoryId` / `expiresOn` clears the value. */
@@ -107,6 +112,7 @@ export interface DocumentPatch {
   expiresOn?: string;
   reminderOffsets?: number[];
   pinned?: boolean;
+  locked?: boolean;
 }
 
 export interface Category {
@@ -178,6 +184,7 @@ export interface AppSettings {
   autoBackup: AutoBackup;
   skipVersion: string | null;
   blurPreviews: boolean;
+  explorerIntegration: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<AppSettings, "autoBackup">> & {
@@ -206,6 +213,7 @@ export const ipc = {
     openQuickNote: () => call<void>("open_quick_note"),
     openSticky: (noteId: string) => call<void>("open_sticky_window", { noteId }),
     showMain: () => call<void>("show_main_window"),
+    takePendingImports: () => call<string[]>("take_pending_imports"),
     saveTextFile: (path: string, contents: string) =>
       call<void>("save_text_file", { path, contents }),
   },
@@ -243,6 +251,11 @@ export const ipc = {
     rerunOcr: (id: string) => call<void>("document_rerun_ocr", { id }),
     export: (id: string, target: string) => call<void>("document_export", { id, target }),
     openExternal: (id: string) => call<void>("document_open_external", { id }),
+    exportMany: (ids: string[], folder: string) =>
+      call<{ exported: number; skipped: string[] }>("documents_export_many", { ids, folder }),
+    /** Opens a locked document for a few minutes. Without a password: Windows Hello. */
+    reveal: (id: string, password?: string) =>
+      call<void>("document_reveal", { id, password: password ?? null }),
   },
   categories: {
     list: () => call<Category[]>("categories_list"),
@@ -302,6 +315,7 @@ interface EventMap {
   "documents://changed": null;
   "notes://changed": string;
   "updates://check": null;
+  "import://requested": null;
 }
 
 export type AppEvent = keyof EventMap;

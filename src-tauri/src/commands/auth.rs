@@ -78,7 +78,7 @@ pub async fn hello_available() -> AppResult<bool> {
     .await
 }
 
-fn main_hwnd(app: &AppHandle) -> AppResult<isize> {
+pub(super) fn main_hwnd(app: &AppHandle) -> AppResult<isize> {
     let w = app
         .get_webview_window(popups::MAIN)
         .ok_or(AppError::NotFound)?;

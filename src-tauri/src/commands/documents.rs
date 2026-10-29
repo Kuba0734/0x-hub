@@ -1,24 +1,39 @@
-use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, State};
 
 use super::{blocking, St};
-use crate::db::categories::{self, Category};
 use crate::db::documents::{self, Document, DocumentPatch};
 use crate::db::{self, search};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::ocr::jobs::OcrQueue;
+use crate::state::AppState;
 use crate::vault::{self, import::ImportResult};
+
+/// Locked documents need a recent re-confirmation (password or Windows Hello).
+pub(super) fn ensure_access(state: &AppState, id: &str) -> AppResult<()> {
+    let locked = documents::is_locked(&state.db(), id)?;
+    if locked && !state.is_revealed(id) {
+        return Err(AppError::DocumentLocked);
+    }
+    Ok(())
+}
+
+fn with_access(state: &AppState, doc: Document) -> Document {
+    let revealed = state.is_revealed(&doc.id);
+    doc.with_access(revealed)
+}
 
 #[tauri::command]
 pub fn documents_list(state: St<'_>, trashed: Option<bool>) -> AppResult<Vec<Document>> {
     let key = state.key()?;
-    documents::list(&state.db(), &key, trashed.unwrap_or(false))
+    let docs = documents::list(&state.db(), &key, trashed.unwrap_or(false))?;
+    Ok(docs.into_iter().map(|d| with_access(&state, d)).collect())
 }
 
 #[tauri::command]
 pub fn document_get(state: St<'_>, id: String) -> AppResult<Document> {
     let key = state.key()?;
-    documents::get(&state.db(), &key, &id)
+    let doc = documents::get(&state.db(), &key, &id)?;
+    Ok(with_access(&state, doc))
 }
 
 #[tauri::command]
@@ -51,10 +66,15 @@ pub async fn documents_import(
 #[tauri::command]
 pub fn document_update(state: St<'_>, id: String, patch: DocumentPatch) -> AppResult<Document> {
     let key = state.key()?;
+    // Removing the lock or editing the (hidden) notes requires access; locking never does.
+    if patch.locked == Some(false) || patch.description.is_some() {
+        ensure_access(&state, &id)?;
+    }
     let conn = state.db();
     let doc = documents::update(&conn, &key, &id, patch, db::now_ms())?;
     search::index_document(&conn, &key, &doc)?;
-    Ok(doc)
+    drop(conn);
+    Ok(with_access(&state, doc))
 }
 
 #[tauri::command]
@@ -83,88 +103,10 @@ pub fn document_delete_forever(state: St<'_>, id: String) -> AppResult<()> {
     search::remove(&conn, &id)
 }
 
-/// Decrypted file bytes for in-app preview, sent as a raw ArrayBuffer.
-#[tauri::command]
-pub async fn document_content(state: St<'_>, id: String) -> AppResult<Response> {
-    let s = state.inner().clone();
-    let bytes = blocking(move || {
-        let key = s.key()?;
-        vault::read(&s.paths, &key, &id)
-    })
-    .await?;
-    Ok(Response::new(bytes))
-}
-
-/// Upright JPEG rendition for images the WebView can't show natively (HEIC, TIFF),
-/// generated in memory. `max` caps the longer side (thumbnails use a small value).
-#[tauri::command]
-pub async fn document_preview_image(state: St<'_>, id: String, max: u32) -> AppResult<Response> {
-    let s = state.inner().clone();
-    let jpeg = blocking(move || {
-        crate::ocr::init_thread();
-        let key = s.key()?;
-        let bytes = vault::read(&s.paths, &key, &id)?;
-        crate::imaging::to_jpeg(&bytes, max.clamp(64, 4096))
-    })
-    .await?;
-    Ok(Response::new(jpeg))
-}
-
-#[tauri::command]
-pub fn document_ocr_text(state: St<'_>, id: String) -> AppResult<Option<String>> {
-    let key = state.key()?;
-    documents::ocr_text(&state.db(), &key, &id)
-}
-
 #[tauri::command]
 pub fn document_rerun_ocr(state: St<'_>, queue: State<'_, OcrQueue>, id: String) -> AppResult<()> {
     state.key()?;
     documents::set_ocr_status(&state.db(), &id, "pending")?;
     queue.enqueue(id);
     Ok(())
-}
-
-#[tauri::command]
-pub async fn document_export(state: St<'_>, id: String, target: String) -> AppResult<()> {
-    let s = state.inner().clone();
-    blocking(move || {
-        let key = s.key()?;
-        vault::export_to(&s.paths, &key, &id, std::path::Path::new(&target))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn document_open_external(state: St<'_>, id: String) -> AppResult<()> {
-    let s = state.inner().clone();
-    blocking(move || {
-        let key = s.key()?;
-        let doc = documents::get(&s.db(), &key, &id)?;
-        vault::open_externally(&s.paths, &key, &id, &doc.filename).map(|_| ())
-    })
-    .await
-}
-
-#[tauri::command]
-pub fn categories_list(state: St<'_>) -> AppResult<Vec<Category>> {
-    state.key()?;
-    categories::list(&state.db())
-}
-
-#[tauri::command]
-pub fn category_create(state: St<'_>, name: String) -> AppResult<Category> {
-    state.key()?;
-    categories::create(&state.db(), &name)
-}
-
-#[tauri::command]
-pub fn category_rename(state: St<'_>, id: String, name: String) -> AppResult<()> {
-    state.key()?;
-    categories::rename(&state.db(), &id, &name)
-}
-
-#[tauri::command]
-pub fn category_delete(state: St<'_>, id: String) -> AppResult<()> {
-    state.key()?;
-    categories::delete(&state.db(), &id)
 }

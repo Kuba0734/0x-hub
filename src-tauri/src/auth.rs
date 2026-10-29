@@ -97,7 +97,8 @@ fn fail(state: &AppState) -> AppError {
     }
 }
 
-pub fn unlock_with_password(state: &AppState, password: &str) -> AppResult<()> {
+/// Checks the master password (with backoff) and returns the DEK it unwraps.
+fn check_password(state: &AppState, password: &str) -> AppResult<SecretKey> {
     let row = keystore::get(&state.db())?.ok_or(AppError::NotInitialized)?;
     let wait = remaining_backoff(&row);
     if wait > 0 {
@@ -106,10 +107,19 @@ pub fn unlock_with_password(state: &AppState, password: &str) -> AppResult<()> {
         });
     }
     let kek = crypto::derive_kek(password.as_bytes(), &row.kdf_salt, row.kdf)?;
-    match crypto::unwrap_key(&kek, &row.wrapped_dek) {
-        Ok(dek) => finish_unlock(state, dek),
-        Err(_) => Err(fail(state)),
-    }
+    crypto::unwrap_key(&kek, &row.wrapped_dek).map_err(|_| fail(state))
+}
+
+pub fn unlock_with_password(state: &AppState, password: &str) -> AppResult<()> {
+    let dek = check_password(state, password)?;
+    finish_unlock(state, dek)
+}
+
+/// Re-confirms the master password while unlocked (e.g. to open a locked document).
+pub fn verify_password(state: &AppState, password: &str) -> AppResult<()> {
+    state.key()?;
+    check_password(state, password)?;
+    keystore::reset_failures(&state.db())
 }
 
 /// Unlocks with the recovery key and immediately sets a new master password.
@@ -159,6 +169,7 @@ pub fn unlock_with_dek(state: &AppState, dek: SecretKey) -> AppResult<()> {
 
 pub fn lock(state: &AppState) -> AppResult<()> {
     state.set_key(None);
+    state.forget_revealed();
     search::drop_index(&state.db())?;
     state.paths.wipe_open_temp();
     Ok(())
@@ -228,6 +239,22 @@ mod tests {
         unlock_with_password(&state, "second password").unwrap();
         assert_eq!(state.key().unwrap().as_bytes(), before.as_bytes());
         assert!(change_password(&state, "wrong", "third password").is_err());
+    }
+
+    #[test]
+    fn verify_password_while_unlocked() {
+        let (_d, state) = temp_state();
+        setup(&state, "first password").unwrap();
+        verify_password(&state, "first password").unwrap();
+        assert!(matches!(
+            verify_password(&state, "nope nope"),
+            Err(AppError::WrongPassword { .. })
+        ));
+        state.reveal("doc");
+        assert!(state.is_revealed("doc"));
+        lock(&state).unwrap();
+        assert!(!state.is_revealed("doc"));
+        assert!(verify_password(&state, "first password").is_err());
     }
 
     #[test]

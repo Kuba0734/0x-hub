@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { EyeOff, File, FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
+import { EyeOff, File, Lock, FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
 import type { DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { useObjectUrl } from "@/lib/useObjectUrl";
@@ -53,7 +53,10 @@ export function Thumbnail({
   blurred?: boolean;
 }) {
   const { ref, seen } = useInView<HTMLDivElement>();
-  const wants = (doc.kind === "image" || doc.kind === "pdf") && doc.size <= THUMB_MAX_BYTES;
+  // Locked documents never load content into the grid.
+  const hidden = doc.locked && !doc.revealed;
+  const wants =
+    !hidden && (doc.kind === "image" || doc.kind === "pdf") && doc.size <= THUMB_MAX_BYTES;
   const { data } = useDocumentContent(doc.id, seen && wants && doc.kind === "pdf");
   const image = useImageSource(doc, THUMB_IMAGE_MAX, seen && wants && doc.kind === "image");
   const url = useObjectUrl(image.data, image.mime);
@@ -86,7 +89,9 @@ export function Thumbnail({
       ref={ref}
       className={`relative flex items-center justify-center overflow-hidden ${className ?? ""}`}
     >
-      {url && !imgFailed ? (
+      {hidden ? (
+        <Lock className="h-7 w-7 text-fg-3" aria-label={strings.documents.lockedLabel} />
+      ) : url && !imgFailed ? (
         <img
           src={url}
           alt=""

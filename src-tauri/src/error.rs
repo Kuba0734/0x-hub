@@ -16,6 +16,8 @@ pub enum AppError {
     Backoff { retry_after_ms: u64 },
     #[error("Not found")]
     NotFound,
+    #[error("This document is locked. Confirm it's you to open it")]
+    DocumentLocked,
     #[error("{0}")]
     Invalid(String),
     #[error("Windows Hello is not available")]
@@ -49,6 +51,7 @@ impl AppError {
             AppError::WrongPassword { .. } => "wrong_password",
             AppError::Backoff { .. } => "backoff",
             AppError::NotFound => "not_found",
+            AppError::DocumentLocked => "document_locked",
             AppError::Invalid(_) => "invalid",
             AppError::HelloUnavailable => "hello_unavailable",
             AppError::HelloCancelled => "hello_cancelled",

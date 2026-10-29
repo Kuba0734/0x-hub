@@ -39,6 +39,21 @@ pub struct Document {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub linked_note_ids: Vec<String>,
+    /// Requires re-confirming identity before content can be opened.
+    pub locked: bool,
+    /// Locked, but re-confirmed recently (set by the command layer from AppState).
+    pub revealed: bool,
+}
+
+impl Document {
+    /// Fills `revealed` and blanks the notes field of locked documents that aren't revealed.
+    pub fn with_access(mut self, revealed: bool) -> Self {
+        self.revealed = self.locked && revealed;
+        if self.locked && !revealed {
+            self.description.clear();
+        }
+        self
+    }
 }
 
 /// Partial update. Empty strings for `category_id` / `expires_on` clear the value.
@@ -52,6 +67,7 @@ pub struct DocumentPatch {
     pub expires_on: Option<String>,
     pub reminder_offsets: Option<Vec<u32>>,
     pub pinned: Option<bool>,
+    pub locked: Option<bool>,
 }
 
 pub struct NewDocument {
@@ -126,7 +142,7 @@ pub fn insert(conn: &Connection, key: &SecretKey, d: &NewDocument, now: i64) -> 
 }
 
 const COLUMNS: &str = "id, category_id, kind, size, meta, ocr_status, expires_on, reminder_offsets,
-                       pinned, created_at, updated_at, deleted_at";
+                       pinned, created_at, updated_at, deleted_at, locked";
 
 struct RawRow {
     id: String,
@@ -141,6 +157,7 @@ struct RawRow {
     created_at: i64,
     updated_at: i64,
     deleted_at: Option<i64>,
+    locked: bool,
 }
 
 fn raw(r: &Row) -> rusqlite::Result<RawRow> {
@@ -157,6 +174,7 @@ fn raw(r: &Row) -> rusqlite::Result<RawRow> {
         created_at: r.get(9)?,
         updated_at: r.get(10)?,
         deleted_at: r.get(11)?,
+        locked: r.get(12)?,
     })
 }
 
@@ -180,6 +198,8 @@ fn hydrate(key: &SecretKey, r: RawRow, links: Vec<String>) -> AppResult<Document
         updated_at: r.updated_at,
         deleted_at: r.deleted_at,
         linked_note_ids: links,
+        locked: r.locked,
+        revealed: false,
     })
 }
 
@@ -290,6 +310,12 @@ pub fn update(
             params![serde_json::to_string(&offsets)?, id],
         )?;
     }
+    if let Some(locked) = p.locked {
+        conn.execute(
+            "UPDATE documents SET locked = ?1 WHERE id = ?2",
+            params![locked, id],
+        )?;
+    }
     if let Some(pinned) = p.pinned {
         conn.execute(
             "UPDATE documents SET pinned = ?1 WHERE id = ?2",
@@ -338,6 +364,14 @@ pub fn set_ocr_status(conn: &Connection, id: &str, status: &str) -> AppResult<()
         params![status, id],
     )?;
     Ok(())
+}
+
+pub fn is_locked(conn: &Connection, id: &str) -> AppResult<bool> {
+    conn.query_row("SELECT locked FROM documents WHERE id = ?1", [id], |r| {
+        r.get(0)
+    })
+    .optional()?
+    .ok_or(AppError::NotFound)
 }
 
 pub fn ocr_text(conn: &Connection, key: &SecretKey, id: &str) -> AppResult<Option<String>> {

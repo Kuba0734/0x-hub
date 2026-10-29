@@ -3,6 +3,8 @@
 pub mod app;
 pub mod auth;
 pub mod backup;
+pub mod categories;
+pub mod document_files;
 pub mod documents;
 pub mod notes;
 pub mod search;

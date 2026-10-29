@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Download, ExternalLink, Pin, PinOff, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  ExternalLink,
+  Lock,
+  LockOpen,
+  Pin,
+  PinOff,
+  Trash2,
+} from "lucide-react";
 import { GlassButton, GlassPanel, GlassTooltip } from "@/components/glass";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -8,6 +17,7 @@ import { strings } from "@/lib/strings";
 import { toast } from "@/stores/toasts";
 import { useCategories, useDocument, useDocumentLifecycle, useUpdateDocument } from "../queries";
 import { exportDocument, openExternally } from "../useDocumentActions";
+import { LockedGate } from "./LockedGate";
 import { MetaPanel } from "./MetaPanel";
 import { PreviewPane } from "./PreviewPane";
 
@@ -52,6 +62,12 @@ export function DocumentDetailPage() {
 
   const patch = (p: Parameters<typeof update.mutate>[0]["patch"]) =>
     update.mutate({ id: doc.id, patch: p });
+  const hidden = doc.locked && !doc.revealed;
+  const toggleLock = () =>
+    update.mutate(
+      { id: doc.id, patch: { locked: !doc.locked } },
+      { onSuccess: () => toast.show(doc.locked ? s.unlockedDone : s.lockedDone) },
+    );
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -75,14 +91,32 @@ export function DocumentDetailPage() {
             onClick={() => patch({ pinned: !doc.pinned })}
           />
         </GlassTooltip>
-        <GlassButton size="sm" icon={<Download />} onClick={() => void exportDocument(doc)}>
-          {s.export}
-        </GlassButton>
-        <GlassTooltip label={s.openExternallyHint}>
-          <GlassButton size="sm" icon={<ExternalLink />} onClick={() => void openExternally(doc)}>
-            {s.openExternally}
-          </GlassButton>
-        </GlassTooltip>
+        {!hidden && (
+          <>
+            <GlassTooltip label={doc.locked ? s.unlockDocument : s.lockDocument}>
+              <GlassButton
+                size="sm"
+                iconOnly
+                aria-label={doc.locked ? s.unlockDocument : s.lockDocument}
+                aria-pressed={doc.locked}
+                icon={doc.locked ? <LockOpen /> : <Lock />}
+                onClick={toggleLock}
+              />
+            </GlassTooltip>
+            <GlassButton size="sm" icon={<Download />} onClick={() => void exportDocument(doc)}>
+              {s.export}
+            </GlassButton>
+            <GlassTooltip label={s.openExternallyHint}>
+              <GlassButton
+                size="sm"
+                icon={<ExternalLink />}
+                onClick={() => void openExternally(doc)}
+              >
+                {s.openExternally}
+              </GlassButton>
+            </GlassTooltip>
+          </>
+        )}
         <GlassButton
           size="sm"
           variant="ghost"
@@ -99,14 +133,18 @@ export function DocumentDetailPage() {
           }
         />
       </div>
-      <div className="flex min-h-0 flex-1 gap-4">
-        <GlassPanel refract={false} className="min-w-0 flex-1 overflow-hidden">
-          <PreviewPane doc={doc} />
-        </GlassPanel>
-        <GlassPanel refract={false} className="w-[360px] shrink-0 overflow-y-auto p-5">
-          <MetaPanel key={doc.id} doc={doc} categories={categories.data ?? []} onPatch={patch} />
-        </GlassPanel>
-      </div>
+      {hidden ? (
+        <LockedGate doc={doc} />
+      ) : (
+        <div className="flex min-h-0 flex-1 gap-4">
+          <GlassPanel refract={false} className="min-w-0 flex-1 overflow-hidden">
+            <PreviewPane doc={doc} />
+          </GlassPanel>
+          <GlassPanel refract={false} className="w-[360px] shrink-0 overflow-y-auto p-5">
+            <MetaPanel key={doc.id} doc={doc} categories={categories.data ?? []} onPatch={patch} />
+          </GlassPanel>
+        </div>
+      )}
     </div>
   );
 }

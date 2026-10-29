@@ -19,6 +19,8 @@ const doc = (id: string, expiresOn: string | null, reminderOffsets: number[]): D
   updatedAt: 0,
   deletedAt: null,
   linkedNoteIds: [],
+  locked: false,
+  revealed: false,
 });
 
 describe("upcoming", () => {

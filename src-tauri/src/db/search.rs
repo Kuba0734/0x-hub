@@ -59,7 +59,12 @@ pub fn remove(conn: &Connection, id: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Locked documents are only findable by title, filename and tags: their notes and OCR
+/// text stay out of the index so search snippets can't reveal content.
 pub fn document_body(doc: &documents::Document, ocr: Option<&str>) -> String {
+    if doc.locked {
+        return format!("{} {}", doc.filename, doc.tags.join(" "));
+    }
     let mut body = format!(
         "{} {} {}",
         doc.filename,
@@ -162,6 +167,40 @@ pub fn query(conn: &Connection, input: &str, limit: u32) -> AppResult<Vec<Search
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locked_documents_hide_content_from_index() {
+        use super::documents::{self, DocumentMeta, DocumentPatch, NewDocument};
+        let conn = crate::db::open_in_memory().unwrap();
+        create_index(&conn).unwrap();
+        let key = SecretKey::generate();
+        let new = NewDocument {
+            id: "d1".into(),
+            kind: "pdf".into(),
+            size: 1,
+            meta: DocumentMeta {
+                title: "Bank letter".into(),
+                description: "pin 4711".into(),
+                ..Default::default()
+            },
+            category_id: None,
+            reminder_offsets: vec![],
+        };
+        documents::insert(&conn, &key, &new, 1).unwrap();
+        documents::set_ocr(&conn, &key, "d1", Some("IBAN DE89"), "done").unwrap();
+        let patch = DocumentPatch {
+            locked: Some(true),
+            ..Default::default()
+        };
+        let doc = documents::update(&conn, &key, "d1", patch, 2).unwrap();
+        index_document(&conn, &key, &doc).unwrap();
+        assert!(query(&conn, "4711", 5).unwrap().is_empty());
+        assert!(query(&conn, "DE89", 5).unwrap().is_empty());
+        assert_eq!(query(&conn, "bank", 5).unwrap().len(), 1);
+        assert!(documents::is_locked(&conn, "d1").unwrap());
+        let hidden = doc.with_access(false);
+        assert!(hidden.description.is_empty() && !hidden.revealed);
+    }
 
     #[test]
     fn query_builder_escapes() {

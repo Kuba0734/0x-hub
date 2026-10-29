@@ -44,6 +44,8 @@ pub struct AppSettings {
     pub skip_version: Option<String>,
     /// Blur document thumbnails in the grid until a document is opened.
     pub blur_previews: bool,
+    /// "Send to" + Explorer context menu entries.
+    pub explorer_integration: bool,
 }
 
 impl Default for AppSettings {
@@ -62,6 +64,7 @@ impl Default for AppSettings {
             auto_backup: AutoBackup::default(),
             skip_version: None,
             blur_previews: true,
+            explorer_integration: false,
         }
     }
 }

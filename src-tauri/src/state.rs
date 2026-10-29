@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use rusqlite::Connection;
 
@@ -15,7 +17,14 @@ pub struct AppState {
     db: Mutex<Connection>,
     dek: Mutex<Option<SecretKey>>,
     last_activity: AtomicI64,
+    /// Locked documents the user re-confirmed recently, with the time of confirmation.
+    revealed: Mutex<HashMap<String, Instant>>,
+    /// Files handed over by Explorer ("Send to", context menu) waiting for the UI.
+    pending_imports: Mutex<Vec<String>>,
 }
+
+/// How long a locked document stays open after re-confirming with password or Hello.
+pub const REVEAL_TTL: Duration = Duration::from_secs(5 * 60);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // A panic while holding the lock must not brick the app; the data is still consistent
@@ -33,6 +42,8 @@ impl AppState {
             db: Mutex::new(conn),
             dek: Mutex::new(None),
             last_activity: AtomicI64::new(db::now_ms()),
+            revealed: Mutex::new(HashMap::new()),
+            pending_imports: Mutex::new(Vec::new()),
         })
     }
 
@@ -63,6 +74,28 @@ impl AppState {
 
     pub fn set_key(&self, key: Option<SecretKey>) {
         *lock(&self.dek) = key;
+    }
+
+    pub fn reveal(&self, id: &str) {
+        lock(&self.revealed).insert(id.to_string(), Instant::now());
+    }
+
+    pub fn is_revealed(&self, id: &str) -> bool {
+        let mut map = lock(&self.revealed);
+        map.retain(|_, t| t.elapsed() < REVEAL_TTL);
+        map.contains_key(id)
+    }
+
+    pub fn forget_revealed(&self) {
+        lock(&self.revealed).clear();
+    }
+
+    pub fn queue_imports(&self, paths: Vec<String>) {
+        lock(&self.pending_imports).extend(paths);
+    }
+
+    pub fn take_imports(&self) -> Vec<String> {
+        std::mem::take(&mut *lock(&self.pending_imports))
     }
 
     pub fn touch(&self) {

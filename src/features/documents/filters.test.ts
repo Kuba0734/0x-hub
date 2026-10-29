@@ -19,6 +19,8 @@ const base: DocumentItem = {
   updatedAt: 0,
   deletedAt: null,
   linkedNoteIds: [],
+  locked: false,
+  revealed: false,
 };
 
 const docs: DocumentItem[] = [

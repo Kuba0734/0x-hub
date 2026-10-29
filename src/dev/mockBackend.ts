@@ -47,13 +47,15 @@ const doc = (
   updatedAt: now - id.length * 3_600_000,
   deletedAt: null,
   linkedNoteIds: [],
+  locked: false,
+  revealed: false,
   ...extra,
 });
 
 const documents: DocumentItem[] = [
   doc("d1", "Passport", "image", "ids", { expiresOn: iso(5), pinned: true, tags: ["travel"] }),
   doc("d22", "Car insurance policy", "pdf", "insurance", { expiresOn: iso(24) }),
-  doc("d333", "Tax return 2025", "pdf", "taxes", { tags: ["2025"] }),
+  doc("d333", "Tax return 2025", "pdf", "taxes", { tags: ["2025"], locked: true }),
   doc("d4444", "Rental contract", "office", "contracts", { expiresOn: iso(200) }),
   doc("d55555", "Vaccination record", "pdf", "medical", { expiresOn: iso(-3) }),
   doc("d666666", "Wi-Fi password", "text", null),
@@ -132,6 +134,7 @@ let settings: AppSettings = {
   autoBackup: { enabled: false, folder: null, intervalDays: 7, lastRunAt: null },
   skipVersion: null,
   blurPreviews: true,
+  explorerIntegration: false,
 };
 
 export function installMockBackend() {
@@ -141,70 +144,88 @@ export function installMockBackend() {
   (window as unknown as { isTauri: boolean }).isTauri = true;
   mockWindows("main");
 
+  // Like the real IPC bridge, hand out copies so callers never share mutable state with the mock.
+  const copy = (v: unknown) =>
+    v && typeof v === "object" && !(v instanceof ArrayBuffer) ? structuredClone(v) : v;
   mockIPC(
-    (cmd, payload) => {
-      const args = (payload ?? {}) as Record<string, unknown>;
-      switch (cmd) {
-        case "vault_status":
-          return { initialized, unlocked, helloEnabled: false, retryAfterMs: 0 };
-        case "vault_setup":
-          initialized = unlocked = true;
-          return "ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567-ABCD-EFGH-IJKL-MNOP-QRST";
-        case "vault_unlock":
-          unlocked = true;
-          return null;
-        case "vault_lock":
-          unlocked = false;
-          return null;
-        case "hello_available":
-          return false;
-        case "settings_get":
-          return settings;
-        case "settings_update":
-          settings = { ...settings, ...(args.patch as Partial<AppSettings>) };
-          return settings;
-        case "app_info":
-          return { version: "0.1.0", dataDir: "C:\\Users\\you\\AppData\\Roaming\\0x-hub" };
-        case "overview_stats":
-          return {
-            documents: documents.length,
-            notes: notes.length,
-            storageBytes: documents.reduce((a, d) => a + d.size, 0),
-            expiringSoon: 2,
-          };
-        case "documents_list":
-          return args.trashed ? [] : documents;
-        case "document_get":
-          return documents.find((d) => d.id === args.id);
-        case "categories_list":
-          return categories.map((c) => ({
-            ...c,
-            documentCount: documents.filter((d) => d.categoryId === c.id).length,
-          }));
-        case "notes_list":
-          return args.trashed ? [] : notes;
-        case "note_get":
-          return notes.find((n) => n.id === args.id);
-        case "search_all":
-          return documents
-            .filter((d) => d.title.toLowerCase().includes(String(args.query).toLowerCase()))
-            .map((d) => ({
-              kind: "document",
-              id: d.id,
-              title: d.title,
-              subKind: d.kind,
-              snippet: `…\u0002${d.title}\u0003 scanned text…`,
-            }));
-        case "document_ocr_text":
-          return "REPUBLIC OF NOWHERE · PASSPORT · No. X1234567";
-        case "document_preview_image":
-          return fakeJpeg(Number(args.max));
-        case "document_content":
-          return new ArrayBuffer(0);
-        default:
-          return null;
-      }
-    },
+    async (cmd, payload) => copy(await handle(cmd, (payload ?? {}) as Record<string, unknown>)),
     { shouldMockEvents: true },
   );
+
+  function handle(cmd: string, args: Record<string, unknown>): unknown {
+    switch (cmd) {
+      case "vault_status":
+        return { initialized, unlocked, helloEnabled: false, retryAfterMs: 0 };
+      case "vault_setup":
+        initialized = unlocked = true;
+        return "ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567-ABCD-EFGH-IJKL-MNOP-QRST";
+      case "vault_unlock":
+        unlocked = true;
+        return null;
+      case "vault_lock":
+        unlocked = false;
+        return null;
+      case "hello_available":
+        return false;
+      case "settings_get":
+        return settings;
+      case "settings_update":
+        settings = { ...settings, ...(args.patch as Partial<AppSettings>) };
+        return settings;
+      case "app_info":
+        return { version: "0.1.0", dataDir: "C:\\Users\\you\\AppData\\Roaming\\0x-hub" };
+      case "overview_stats":
+        return {
+          documents: documents.length,
+          notes: notes.length,
+          storageBytes: documents.reduce((a, d) => a + d.size, 0),
+          expiringSoon: 2,
+        };
+      case "documents_list":
+        return args.trashed ? [] : documents;
+      case "document_get":
+        return documents.find((d) => d.id === args.id);
+      case "categories_list":
+        return categories.map((c) => ({
+          ...c,
+          documentCount: documents.filter((d) => d.categoryId === c.id).length,
+        }));
+      case "notes_list":
+        return args.trashed ? [] : notes;
+      case "note_get":
+        return notes.find((n) => n.id === args.id);
+      case "search_all":
+        return documents
+          .filter((d) => d.title.toLowerCase().includes(String(args.query).toLowerCase()))
+          .map((d) => ({
+            kind: "document",
+            id: d.id,
+            title: d.title,
+            subKind: d.kind,
+            snippet: `…\u0002${d.title}\u0003 scanned text…`,
+          }));
+      case "document_ocr_text":
+        return "REPUBLIC OF NOWHERE · PASSPORT · No. X1234567";
+      case "document_reveal": {
+        const d = documents.find((x) => x.id === args.id);
+        if (d) d.revealed = true;
+        return null;
+      }
+      case "document_update": {
+        const d = documents.find((x) => x.id === args.id);
+        if (d) Object.assign(d, args.patch as Partial<DocumentItem>);
+        return d;
+      }
+      case "documents_export_many":
+        return { exported: (args.ids as string[]).length, skipped: [] };
+      case "take_pending_imports":
+        return [];
+      case "document_preview_image":
+        return fakeJpeg(Number(args.max));
+      case "document_content":
+        return new ArrayBuffer(0);
+      default:
+        return null;
+    }
+  }
 }

@@ -1,16 +1,25 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
-import { Pin } from "lucide-react";
+import { Lock, Pin } from "lucide-react";
 import { GlassCard, GlassContextMenu, type MenuItem } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
-import { formatBytes } from "@/lib/format";
+import { AnimatedCheck } from "@/components/ui/AnimatedCheck";
+import { cn, formatBytes } from "@/lib/format";
 import type { Category, DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { useSettings } from "@/stores/settings";
+import type { SelectModifiers } from "../selection/useSelection";
 import { ExpiryBadge } from "./ExpiryBadge";
 import { Thumbnail } from "./Thumbnail";
 
-interface Props {
+export interface SelectableProps {
+  selected: boolean;
+  /** Some document is selected: plain clicks toggle selection instead of opening. */
+  selecting: boolean;
+  onSelect: (mods: SelectModifiers) => void;
+}
+
+interface Props extends SelectableProps {
   doc: DocumentItem;
   category?: Category;
   menu: MenuItem[];
@@ -18,9 +27,11 @@ interface Props {
   fresh?: boolean;
 }
 
-export function DocumentCard({ doc, category, menu, fresh }: Props) {
+export function DocumentCard({ doc, category, menu, fresh, selected, selecting, onSelect }: Props) {
   const navigate = useNavigate();
   const blurPreviews = useSettings((st) => st.settings?.blurPreviews ?? true);
+  const open = () => navigate(`/documents/${doc.id}`);
+
   return (
     <motion.div
       layout
@@ -28,6 +39,7 @@ export function DocumentCard({ doc, category, menu, fresh }: Props) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={spring}
+      className="group relative"
     >
       <GlassContextMenu items={menu} label={doc.title}>
         <GlassCard
@@ -35,11 +47,21 @@ export function DocumentCard({ doc, category, menu, fresh }: Props) {
           role="link"
           tabIndex={0}
           aria-label={doc.title}
-          onClick={() => navigate(`/documents/${doc.id}`)}
+          aria-selected={selecting ? selected : undefined}
+          onClick={(e) =>
+            e.ctrlKey || e.metaKey || e.shiftKey || selecting ? onSelect(e) : open()
+          }
           onKeyDown={(e) => {
-            if (e.key === "Enter") navigate(`/documents/${doc.id}`);
+            if (e.key === "Enter") open();
+            else if (e.key === " ") {
+              e.preventDefault();
+              onSelect(e);
+            }
           }}
-          className="flex cursor-pointer flex-col overflow-hidden"
+          className={cn(
+            "flex cursor-pointer flex-col overflow-hidden",
+            selected && "outline-2 outline-offset-2 outline-white/80",
+          )}
         >
           <Thumbnail
             doc={doc}
@@ -51,6 +73,12 @@ export function DocumentCard({ doc, category, menu, fresh }: Props) {
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-normal">
                 {doc.title}
               </h3>
+              {doc.locked && (
+                <Lock
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-2"
+                  aria-label={strings.documents.lockedLabel}
+                />
+              )}
               {doc.pinned && (
                 <Pin
                   className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-2"
@@ -65,6 +93,20 @@ export function DocumentCard({ doc, category, menu, fresh }: Props) {
           </div>
         </GlassCard>
       </GlassContextMenu>
+      <div
+        className={cn(
+          "absolute top-2.5 left-2.5 z-10 rounded-md bg-black/50 transition-opacity duration-150",
+          selected || selecting
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+        )}
+      >
+        <AnimatedCheck
+          checked={selected}
+          label={`${strings.documents.select}: ${doc.title}`}
+          onChange={() => onSelect({ shiftKey: false, ctrlKey: true, metaKey: false })}
+        />
+      </div>
     </motion.div>
   );
 }
