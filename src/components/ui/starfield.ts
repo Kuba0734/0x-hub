@@ -29,18 +29,19 @@ export function rng(seed: number) {
 }
 
 /**
- * Draws one layer split in two halves (`part` 0 or 1), so the halves can twinkle out of
- * phase. Every star is assigned to one half by the same random sequence.
+ * Draws a layer, or one half of it (`part` 0 or 1) so the halves can twinkle out of phase.
+ * Every star is assigned to one half by the same random sequence.
  */
 export function drawStars(
   canvas: HTMLCanvasElement,
   layer: StarLayer,
   seed: number,
-  part: 0 | 1,
+  part: 0 | 1 | null,
   width: number,
   height: number,
 ) {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  // 1.5× is sharp enough for dots and keeps the layers' GPU memory in check.
+  const dpr = Math.min(1.5, window.devicePixelRatio || 1);
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
   canvas.style.width = `${width}px`;
@@ -57,7 +58,7 @@ export function drawStars(
     const r = layer.minR + rand() * (layer.maxR - layer.minR);
     const a = layer.minAlpha + rand() * (layer.maxAlpha - layer.minAlpha);
     const half = rand() < 0.5 ? 0 : 1;
-    if (half !== part) continue;
+    if (part !== null && half !== part) continue;
     if (r > 1.2) {
       // Bright stars get a soft halo.
       const g = ctx.createRadialGradient(x, y, 0, x, y, r * 4);

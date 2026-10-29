@@ -1,14 +1,23 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
 
-/** Keeps Tab inside `ref` while active, focuses the first field and restores focus on close. */
+/**
+ * Keeps Tab inside `ref` while active, focuses the first field and restores focus on close.
+ * Runs once per opening: `onEscape` is read through a ref, so a new callback on every render
+ * (typical for inline handlers) never re-runs the setup and steals focus while typing.
+ */
 export function useFocusTrap(
   ref: RefObject<HTMLElement | null>,
   active: boolean,
   onEscape?: () => void,
 ) {
+  const escape = useRef(onEscape);
+  useEffect(() => {
+    escape.current = onEscape;
+  }, [onEscape]);
+
   useEffect(() => {
     if (!active) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -19,9 +28,11 @@ export function useFocusTrap(
     (first ?? root)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && onEscape) {
+      // Fields that handle Escape themselves (e.g. text on a PDF page) keep it.
+      const own = (e.target as HTMLElement | null)?.closest?.("[data-own-escape]");
+      if (e.key === "Escape" && escape.current && !own) {
         e.stopPropagation();
-        onEscape();
+        escape.current();
         return;
       }
       if (e.key !== "Tab" || !ref.current) return;
@@ -44,5 +55,5 @@ export function useFocusTrap(
       document.removeEventListener("keydown", onKey, true);
       previous?.focus?.();
     };
-  }, [active, ref, onEscape]);
+  }, [active, ref]);
 }

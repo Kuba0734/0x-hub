@@ -81,8 +81,8 @@
 
 /* ---------- Ambient background ----------
  * A monochrome night sky for the glass to refract: soft light (nebula), three star layers
- * and the odd shooting star. Everything moves with transform or opacity only, so it stays
- * on the compositor. `--px/--py` (-1…1) follow the cursor; each layer scales them. */
+ * and the odd shooting star. Few full-window layers, and everything moves with transform
+ * or opacity only, so it stays on the compositor and cheap for the glass above it. */
 .ambient {
   position: fixed;
   inset: 0;
@@ -95,23 +95,16 @@
     rgba(0, 0, 0, 0.72);
 }
 
+/* Parallax transforms are written by AmbientBackground (an eased rAF loop). */
 .ambient-field,
 .stars {
   position: absolute;
-  transition: transform 900ms cubic-bezier(0.2, 0, 0, 1);
   will-change: transform;
 }
 
 .ambient-field {
   inset: -40px;
-  /* The nebula sits furthest back and barely moves. */
-  --depth: 4px;
   opacity: 0.75;
-}
-
-.ambient-field,
-.stars {
-  transform: translate3d(calc(var(--px, 0) * var(--depth)), calc(var(--py, 0) * var(--depth)), 0);
 }
 
 .stars canvas {
@@ -119,32 +112,14 @@
   inset: 0;
 }
 
+/* The bright front stars twinkle in two halves, out of phase. */
 .stars-twinkle {
-  animation: twinkle ease-in-out infinite alternate;
+  animation: twinkle 4.2s ease-in-out infinite alternate;
   will-change: opacity;
 }
-/* Halves of each layer twinkle out of phase, at different speeds per depth. */
-.stars-twinkle--0a {
-  animation-duration: 5.5s;
-}
-.stars-twinkle--0b {
-  animation-duration: 7s;
-  animation-delay: -3s;
-}
-.stars-twinkle--1a {
-  animation-duration: 4.2s;
-  animation-delay: -1s;
-}
-.stars-twinkle--1b {
-  animation-duration: 6.1s;
-  animation-delay: -2.4s;
-}
-.stars-twinkle--2a {
-  animation-duration: 3.4s;
-}
-.stars-twinkle--2b {
-  animation-duration: 4.8s;
-  animation-delay: -1.7s;
+.stars-twinkle--b {
+  animation-duration: 5.6s;
+  animation-delay: -2.3s;
 }
 
 @keyframes twinkle {
@@ -152,7 +127,7 @@
     opacity: 1;
   }
   to {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 }
 
@@ -227,47 +202,6 @@
   animation-duration: 55s;
 }
 
-.ambient-blob--d {
-  width: 28vmax;
-  height: 28vmax;
-  left: 8%;
-  bottom: 4%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 64%);
-  animation-name: blob-d;
-  animation-duration: 43s;
-}
-
-.ambient-blob--e {
-  width: 24vmax;
-  height: 24vmax;
-  right: 12%;
-  top: 6%;
-  background: radial-gradient(circle, rgba(200, 200, 200, 0.08), transparent 64%);
-  animation-name: blob-e;
-  animation-duration: 61s;
-}
-
-/* A very soft beam slowly circling the window, so the light never looks static. */
-.ambient-sweep {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 160vmax;
-  height: 160vmax;
-  margin: -80vmax 0 0 -80vmax;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(255, 255, 255, 0.035) 40deg,
-    transparent 95deg,
-    transparent 200deg,
-    rgba(255, 255, 255, 0.025) 245deg,
-    transparent 300deg
-  );
-  animation: sweep 140s linear infinite;
-  will-change: transform;
-}
-
 /* Static grain (rendered once) keeps the soft gradients from banding. */
 .ambient-grain {
   position: absolute;
@@ -311,40 +245,15 @@
     opacity: 1;
   }
 }
-@keyframes blob-d {
-  0% {
-    transform: translate3d(0, 0, 0) scale(0.9);
-  }
-  100% {
-    transform: translate3d(18vmax, -14vmax, 0) scale(1.15);
-  }
-}
-@keyframes blob-e {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1.1);
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(-14vmax, 18vmax, 0) scale(0.9);
-    opacity: 0.6;
-  }
-}
-@keyframes sweep {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 /* Setting off: the sky holds still. */
 .ambient[data-moving="false"] .ambient-blob,
-.ambient[data-moving="false"] .ambient-sweep,
 .ambient[data-moving="false"] .stars-twinkle {
   animation-play-state: paused;
 }
 
 /* Reduce motion: still stars only. */
-[data-reduce-motion="true"] .ambient-blob,
-[data-reduce-motion="true"] .ambient-sweep {
+[data-reduce-motion="true"] .ambient-blob {
   display: none;
 }
 

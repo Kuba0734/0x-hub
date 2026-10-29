@@ -50,13 +50,21 @@ jobs:
           pnpm lint
           pnpm test
 
+      # actions/checkout replaces the annotated tag with a lightweight one, which would make
+      # %(contents) the bare commit subject. Re-fetch the real tag first. deploy.bat writes
+      # the same notes into the release commit, so either source yields them; the first
+      # line ("vX.Y.Z") and the blank line after it are dropped.
       - name: Read release notes from the tag annotation
         id: notes
         shell: bash
         run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          contents="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)')"
+          notes="$(printf '%s\n' "$contents" | sed '1d' | sed '/./,$!d')"
+          [ -n "$notes" ] || notes="$contents"
           {
             echo "body<<__NOTES__"
-            git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)'
+            printf '%s\n' "$notes"
             echo "__NOTES__"
           } >> "$GITHUB_OUTPUT"
 

@@ -125,6 +125,7 @@ export function TextItem({
         aria-multiline="true"
         aria-label={s.textItem}
         contentEditable="plaintext-only"
+        data-own-escape
         suppressContentEditableWarning
         spellCheck={false}
         onInput={(e) => onPatch({ text: e.currentTarget.innerText.replace(/\n$/, "") })}

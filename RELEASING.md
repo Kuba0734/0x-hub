@@ -31,21 +31,27 @@ release and uploads `latest.json`, which installed apps poll for updates.
 The quick way:
 
 ```bat
-deploy.bat            :: bumps the patch version, e.g. 0.1.0 -> 0.1.1
-deploy.bat 0.2.0      :: or an explicit version
+deploy.bat                          :: bumps the patch version, e.g. 0.1.0 -> 0.1.1
+deploy.bat 0.2.0                    :: or an explicit version
+deploy.bat "Starry sky and scanner" :: patch bump with a message on top of the notes
+deploy.bat 0.2.0 "Big update"       :: explicit version with a message
 ```
 
-`deploy.bat` runs the checks, bumps the version, commits everything, creates an annotated tag
-whose message (commit subjects since the last tag) becomes the release notes shown in the
-in-app update dialog, and pushes branch and tag. `set DRY_RUN=1` first to preview without
-changing anything; `set SKIP_CHECKS=1` to skip the checks.
+`deploy.bat` runs the checks, writes the release notes, bumps the version, commits everything
+and pushes branch and tag. The notes are your optional message plus the `feat`/`fix`/`perf`
+commits since the last tag, grouped under "New", "Fixes" and "Faster" (other types such as
+`chore` or `refactor` are left out; see `scripts/release-notes.mjs`). They are used as the
+release commit's message and the tag annotation, and the workflow publishes them as the
+GitHub release body, which the in-app update dialog shows. `set DRY_RUN=1` first to preview
+the version and notes without changing anything; `set SKIP_CHECKS=1` to skip the checks.
 
 The same steps by hand:
 
 1. Bump the version everywhere: `pnpm version:bump 0.2.0`
    (updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`).
-2. Commit: `git commit -am "chore(release): v0.2.0"`
-3. Tag with release notes: `git tag -a v0.2.0 -m "0x-hub 0.2.0" -m "- what changed"`
+2. Write the notes: `node scripts/release-notes.mjs 0.2.0 notes.txt "optional message"`
+3. Commit and tag with them: `git commit -a -F notes.txt` and `git tag -a v0.2.0 -F notes.txt`
+   (the first line, `v0.2.0`, is the subject; the release body starts after the blank line).
 4. Push: `git push origin main` then `git push origin v0.2.0`
 5. Verify:
    - Actions tab: the "Release" run is green.
