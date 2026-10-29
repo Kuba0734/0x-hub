@@ -56,6 +56,12 @@ export function HotkeySection({ settings }: { settings: AppSettings }) {
         onChange={(v) => void patch({ autostart: v })}
       />
       <GlassToggle
+        label={s.explorerIntegration}
+        description={s.explorerIntegrationHint}
+        checked={settings.explorerIntegration}
+        onChange={(v) => void patch({ explorerIntegration: v })}
+      />
+      <GlassToggle
         label={s.closeToTray}
         checked={settings.closeToTray}
         onChange={(v) => void patch({ closeToTray: v })}

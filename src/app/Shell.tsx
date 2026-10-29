@@ -15,6 +15,7 @@ import { useSession } from "@/stores/session";
 import { routeOrder, sectionOf } from "./nav";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
+import { useExternalImports } from "./useExternalImports";
 
 function Pages() {
   const location = useLocation();
@@ -48,6 +49,7 @@ function Pages() {
 /** Title bar + sidebar + routed content. Content is not rendered while locked. */
 export function Shell() {
   const unlocked = useSession((s) => s.phase === "unlocked");
+  useExternalImports();
   return (
     <div className="flex h-full flex-col">
       <TitleBar />

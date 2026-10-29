@@ -76,6 +76,12 @@ pub fn show_main_window(app: AppHandle) {
     popups::show_main(&app);
 }
 
+/// Files Explorer handed to the app; the UI imports them once the vault is unlocked.
+#[tauri::command]
+pub fn take_pending_imports(state: St<'_>) -> Vec<String> {
+    state.take_imports()
+}
+
 /// Saves the recovery key to a `.txt` path the user picked in a save dialog.
 #[tauri::command]
 pub fn save_text_file(path: String, contents: String) -> AppResult<()> {

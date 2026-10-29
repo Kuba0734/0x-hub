@@ -12,13 +12,14 @@ mod paths;
 mod popups;
 mod reminders;
 mod session_watch;
+mod shell_integration;
 mod state;
 mod tray;
 mod vault;
 
 use std::sync::Arc;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_window_state::StateFlags;
 
@@ -30,7 +31,14 @@ const MINIMIZED_ARG: &str = "--minimized";
 pub fn run() {
     let app = tauri::Builder::default()
         // Must be first: a second launch focuses the running instance instead.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let paths = shell_integration::paths_from_args(&args);
+            if !paths.is_empty() {
+                if let Some(state) = app.try_state::<Arc<AppState>>() {
+                    state.queue_imports(paths);
+                    let _ = app.emit("import://requested", ());
+                }
+            }
             popups::show_main(app);
         }))
         .plugin(
@@ -60,7 +68,16 @@ pub fn run() {
             reminders::spawn(handle.clone(), state.clone());
             tray::create(&handle)?;
 
+            let args: Vec<String> = std::env::args().collect();
+            state.queue_imports(shell_integration::paths_from_args(&args));
+
             let settings = db::settings::get(&state.db())?;
+            if settings.explorer_integration {
+                // Refresh the entries in case the app was reinstalled elsewhere.
+                if let Err(e) = shell_integration::enable() {
+                    eprintln!("explorer integration: {e}");
+                }
+            }
             if let Err(e) = hotkey::register(&handle, &settings.hotkey) {
                 eprintln!("could not register hotkey: {e}");
             }
@@ -102,6 +119,7 @@ pub fn run() {
             commands::app::open_sticky_window,
             commands::app::show_main_window,
             commands::app::save_text_file,
+            commands::app::take_pending_imports,
             commands::auth::vault_status,
             commands::auth::vault_setup,
             commands::auth::vault_unlock,
@@ -119,16 +137,18 @@ pub fn run() {
             commands::documents::document_trash,
             commands::documents::document_restore,
             commands::documents::document_delete_forever,
-            commands::documents::document_content,
-            commands::documents::document_ocr_text,
-            commands::documents::document_preview_image,
             commands::documents::document_rerun_ocr,
-            commands::documents::document_export,
-            commands::documents::document_open_external,
-            commands::documents::categories_list,
-            commands::documents::category_create,
-            commands::documents::category_rename,
-            commands::documents::category_delete,
+            commands::document_files::document_content,
+            commands::document_files::document_preview_image,
+            commands::document_files::document_ocr_text,
+            commands::document_files::document_export,
+            commands::document_files::documents_export_many,
+            commands::document_files::document_open_external,
+            commands::document_files::document_reveal,
+            commands::categories::categories_list,
+            commands::categories::category_create,
+            commands::categories::category_rename,
+            commands::categories::category_delete,
             commands::notes::notes_list,
             commands::notes::note_get,
             commands::notes::note_create,

@@ -4,7 +4,7 @@ use tauri_plugin_autostart::ManagerExt;
 use super::St;
 use crate::db::settings::{self, AppSettings};
 use crate::error::{AppError, AppResult};
-use crate::hotkey;
+use crate::{hotkey, shell_integration};
 
 #[tauri::command]
 pub fn settings_get(state: St<'_>) -> AppResult<AppSettings> {
@@ -28,6 +28,14 @@ pub fn settings_update(
             next.hotkey = before.hotkey.clone();
             settings::put(&state.db(), &next)?;
             return Err(e);
+        }
+    }
+
+    if next.explorer_integration != before.explorer_integration {
+        if next.explorer_integration {
+            shell_integration::enable()?;
+        } else {
+            shell_integration::disable()?;
         }
     }
 

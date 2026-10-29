@@ -60,6 +60,7 @@
       },
       "nsis": {
         "installMode": "currentUser",
+        "installerHooks": "windows/hooks.nsh",
         "headerImage": "installer/nsis-header.bmp",
         "sidebarImage": "installer/nsis-sidebar.bmp",
         "installerIcon": "icons/icon.ico"
