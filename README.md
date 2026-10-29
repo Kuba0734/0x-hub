@@ -13,8 +13,8 @@ monochrome liquid-glass interface.
   encrypted `.0xbackup` export/restore and scheduled backups, `Ctrl+K` command palette.
 - **Security** — master password (Argon2id) protecting a random data key; optional Windows Hello;
   auto-lock on inactivity and when Windows locks; printable recovery key. No password reset exists.
-- **Private** — no telemetry, no cloud. The only network request is the update check against
-  GitHub Releases.
+- **Private** — no telemetry, no cloud. The only network traffic is the update check against
+  GitHub Releases and, only while you have "From phone" open, a local Wi-Fi upload server.
 
 Windows 10 (1809+) and Windows 11 only.
 

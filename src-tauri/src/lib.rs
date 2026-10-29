@@ -9,6 +9,7 @@ mod hotkey;
 mod imaging;
 mod ocr;
 mod paths;
+mod phone;
 mod popups;
 mod reminders;
 mod session_watch;
@@ -65,6 +66,7 @@ pub fn run() {
 
             let handle = app.handle().clone();
             app.manage(ocr::jobs::spawn(handle.clone(), state.clone()));
+            app.manage(phone::PhoneUploads::default());
             reminders::spawn(handle.clone(), state.clone());
             tray::create(&handle)?;
 
@@ -120,6 +122,8 @@ pub fn run() {
             commands::app::show_main_window,
             commands::app::save_text_file,
             commands::app::take_pending_imports,
+            commands::phone::phone_upload_start,
+            commands::phone::phone_upload_stop,
             commands::auth::vault_status,
             commands::auth::vault_setup,
             commands::auth::vault_unlock,
@@ -153,6 +157,7 @@ pub fn run() {
             commands::notes::note_get,
             commands::notes::note_create,
             commands::notes::note_update,
+            commands::notes::note_reveal,
             commands::notes::note_trash,
             commands::notes::note_restore,
             commands::notes::note_delete_forever,

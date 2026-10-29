@@ -17,6 +17,7 @@ import { allTags, applyFilters, defaultFilters, type DocFilters } from "./filter
 import { useCategories, useDocuments } from "./queries";
 import { useDocumentActions } from "./useDocumentActions";
 import { useDocumentImport } from "./useDocumentImport";
+import { PhoneUploadDialog } from "./phone/PhoneUploadDialog";
 import { SelectionBar } from "./selection/SelectionBar";
 import { useSelection } from "./selection/useSelection";
 
@@ -30,6 +31,7 @@ export function DocumentsPage() {
     localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid",
   );
   const [manage, setManage] = useState(false);
+  const [phone, setPhone] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const docs = useDocuments(false);
@@ -146,6 +148,7 @@ export function DocumentsPage() {
               view={view}
               onView={setView}
               onUpload={() => void imp.pick()}
+              onPhone={() => setPhone(true)}
               onManageCategories={() => setManage(true)}
             />
             <div className="mt-5">{content}</div>
@@ -162,6 +165,7 @@ export function DocumentsPage() {
       )}
       <DropOverlay drag={imp.drag} />
       <FlyingChips flying={imp.flying} onDone={imp.clearFlying} />
+      <PhoneUploadDialog open={phone} onClose={() => setPhone(false)} />
       <CategoriesDialog
         open={manage}
         onClose={() => setManage(false)}

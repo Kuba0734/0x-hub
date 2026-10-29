@@ -1,4 +1,4 @@
-import { LayoutGrid, List, Search, Settings2, Tag, Upload } from "lucide-react";
+import { LayoutGrid, List, Search, Settings2, Smartphone, Tag, Upload } from "lucide-react";
 import { GlassButton, GlassInput, GlassSelect, GlassTooltip } from "@/components/glass";
 import { cn } from "@/lib/format";
 import type { Category } from "@/lib/ipc";
@@ -13,6 +13,7 @@ interface Props {
   view: "grid" | "list";
   onView: (v: "grid" | "list") => void;
   onUpload: () => void;
+  onPhone: () => void;
   onManageCategories: () => void;
 }
 
@@ -26,6 +27,7 @@ export function DocumentsToolbar({
   view,
   onView,
   onUpload,
+  onPhone,
   onManageCategories,
 }: Props) {
   const set = (patch: Partial<DocFilters>) => onChange({ ...filters, ...patch });
@@ -96,6 +98,9 @@ export function DocumentsToolbar({
               </GlassTooltip>
             ))}
           </div>
+          <GlassButton icon={<Smartphone />} onClick={onPhone}>
+            {s.fromPhone}
+          </GlassButton>
           <GlassButton variant="primary" icon={<Upload />} onClick={onUpload}>
             {s.upload}
           </GlassButton>

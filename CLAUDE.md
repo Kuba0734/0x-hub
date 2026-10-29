@@ -8,7 +8,7 @@ This file gives Claude Code the context it needs to work on this repository. Rea
 
 - Platform: **Windows 10 (1809+) and Windows 11 only**. Do not add macOS/Linux code paths, configs, or CI jobs.
 - UI language: **English** only. All user-facing strings live in `src/lib/strings.ts` (single source, no hardcoded UI text in components).
-- Data: **100% local**. No telemetry, no cloud sync, no network calls except the update check against GitHub Releases.
+- Data: **100% local**. No telemetry, no cloud sync, no network calls except the update check against GitHub Releases — and the user-started phone upload on the local Wi-Fi (see "Phone upload" under Security).
 
 ## Tech stack
 
@@ -31,6 +31,7 @@ This file gives Claude Code the context it needs to work on this repository. Rea
 | Windows Hello | `Windows.Security.Credentials.UI.UserConsentVerifier` via the `windows` crate |
 | Window effects | `window-vibrancy` (Mica/Acrylic) + transparent, frameless window |
 | Tauri plugins | `updater`, `process`, `notification`, `global-shortcut`, `autostart`, `dialog`, `fs`, `single-instance`, `window-state` |
+| Phone upload | `tiny_http` (LAN-only server while the dialog is open), `qrcode` (SVG) |
 
 Do not introduce other UI frameworks, CSS-in-JS libraries, or a second animation library.
 
@@ -208,6 +209,18 @@ Shared: pin, grey "shade" label instead of color (5 greyscale tones), link to do
 - Wrong password: exponential backoff on retries. No password recovery — make this very clear in onboarding and offer a recovery-key export (printable).
 - Tauri capabilities: grant the minimum permissions per window. No `shell:allow-execute`. File system access only through Rust commands, not the `fs` plugin from the frontend, except for dialogs.
 
+### Phone upload (the only inbound network feature)
+- Started only by the user ("From phone" on Documents); the server runs while that dialog is open.
+- Binds to the PC's private LAN IPv4 address only (never 0.0.0.0), on a random port.
+- Every URL contains a random 128-bit token; anything else gets 404. Two routes: the upload page and `POST upload`.
+- Stops after 10 minutes, when the dialog closes, or when the vault locks. Files are encrypted into the vault straight from memory.
+- Plain HTTP inside the LAN (iOS rejects self-signed certificates); the dialog says to use it on trusted Wi-Fi only.
+- Do not add further network features without the user explicitly asking.
+
+### Per-item lock
+- Documents and notes can be locked: content, OCR text, notes/body, export and "open externally" are only served after re-confirming with the master password or Windows Hello. Access lasts 5 minutes or until the vault locks (`AppState::reveal`).
+- Locked items keep only title/filename/tags in the search index.
+
 ## Auto-update via GitHub Releases
 
 - Use `tauri-plugin-updater` + `tauri-plugin-process` (relaunch).
@@ -243,5 +256,5 @@ Shared: pin, grey "shade" label instead of color (5 greyscale tones), link to do
 - Colored accents, emojis in the UI, or stock illustrations — the identity is strict monochrome glass.
 - Heavy effects that hurt performance (stacked blurs > 2 levels deep, animating blur radius on large areas, displacement filters on scrolling lists).
 - Storing anything unencrypted on disk (including thumbnails and OCR text) — thumbnails are generated in memory or cached encrypted.
-- Any network access other than the GitHub update endpoint.
+- Any network access other than the GitHub update endpoint and the phone-upload server described under Security.
 - Adding non-Windows targets.

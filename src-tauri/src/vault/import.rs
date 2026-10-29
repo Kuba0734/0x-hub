@@ -45,22 +45,39 @@ fn title_from(filename: &str) -> String {
 }
 
 pub fn import_one(state: &AppState, path: &str, category_id: Option<&str>) -> AppResult<String> {
-    let key = state.key()?;
+    state.key()?;
     let p = std::path::Path::new(path);
     let filename = p
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .ok_or_else(|| AppError::Invalid("Not a file".into()))?;
-    let size = std::fs::metadata(p)?.len();
-    if size > MAX_FILE_BYTES {
-        return Err(AppError::Invalid(
-            "Files larger than 512 MB are not supported".into(),
-        ));
+    if std::fs::metadata(p)?.len() > MAX_FILE_BYTES {
+        return Err(too_large());
     }
     let bytes = std::fs::read(p)?;
+    import_bytes(state, &filename, &bytes, category_id)
+}
+
+fn too_large() -> AppError {
+    AppError::Invalid("Files larger than 512 MB are not supported".into())
+}
+
+/// Encrypts in-memory bytes into the vault (used for files and phone uploads).
+pub fn import_bytes(
+    state: &AppState,
+    filename: &str,
+    bytes: &[u8],
+    category_id: Option<&str>,
+) -> AppResult<String> {
+    let key = state.key()?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err(too_large());
+    }
+    let filename = super::safe_filename(filename);
+    let size = bytes.len() as u64;
     let (kind, mime) = documents::classify(&filename);
     let id = db::new_id();
-    super::store(&state.paths, &key, &id, &bytes)?;
+    super::store(&state.paths, &key, &id, bytes)?;
 
     let conn = state.db();
     let offsets = settings::get(&conn)?.default_reminder_offsets;

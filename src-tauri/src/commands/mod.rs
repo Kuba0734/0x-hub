@@ -7,6 +7,7 @@ pub mod categories;
 pub mod document_files;
 pub mod documents;
 pub mod notes;
+pub mod phone;
 pub mod search;
 pub mod settings;
 

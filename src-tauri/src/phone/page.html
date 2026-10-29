@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>0x-hub · Upload</title>
+    <style>
+      :root {
+        --text-2: #a1a1a1;
+        --text-3: #5c5c5c;
+        --line: rgba(255, 255, 255, 0.08);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        background: radial-gradient(circle at 20% 0%, #1c1c1c, #000 60%);
+        color: #fff;
+        font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+        padding: max(24px, env(safe-area-inset-top)) 20px 32px;
+      }
+      .mark {
+        display: inline-block;
+        background: #fff;
+        color: #000;
+        font-weight: 700;
+        border-radius: 8px;
+        padding: 2px 7px;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 26px;
+        letter-spacing: -0.02em;
+        margin: 18px 0 6px;
+      }
+      p {
+        color: var(--text-2);
+        margin: 0 0 22px;
+      }
+      .pick {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 56px;
+        border-radius: 999px;
+        background: #fff;
+        color: #000;
+        font-weight: 600;
+        font-size: 16px;
+      }
+      input {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 22px 0 0;
+      }
+      li {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 16px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .state {
+        color: var(--text-2);
+        flex-shrink: 0;
+      }
+      .done .state {
+        color: #fff;
+        font-weight: 600;
+      }
+      .bar {
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        background: #fff;
+        transform-origin: left;
+        transform: scaleX(0);
+        transition: transform 0.2s;
+      }
+      .note {
+        color: var(--text-3);
+        font-size: 12px;
+        margin-top: 28px;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="mark">0x</span>
+    <h1>Send to 0x-hub</h1>
+    <p>Photos and files are encrypted on your PC as soon as they arrive.</p>
+    <label class="pick">
+      Choose photos or files
+      <input id="files" type="file" multiple accept="image/*,application/pdf,.heic,.heif,.pdf" />
+    </label>
+    <ul id="list"></ul>
+    <div class="note">This link stops working after 10 minutes or when you close the window on your PC.</div>
+    <script>
+      const list = document.getElementById("list");
+      const input = document.getElementById("files");
+
+      function row(file) {
+        const li = document.createElement("li");
+        li.innerHTML = '<div class="row"><span class="name"></span><span class="state">Waiting</span></div><div class="bar"><i></i></div>';
+        li.querySelector(".name").textContent = file.name;
+        list.prepend(li);
+        return {
+          progress: (v) => (li.querySelector("i").style.transform = "scaleX(" + v + ")"),
+          state: (text, cls) => {
+            li.querySelector(".state").textContent = text;
+            if (cls) li.className = cls;
+          },
+        };
+      }
+
+      function upload(file, ui) {
+        return new Promise((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "upload");
+          xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+          xhr.upload.onprogress = (e) => e.lengthComputable && ui.progress(e.loaded / e.total);
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              ui.progress(1);
+              ui.state("Encrypted", "done");
+            } else {
+              let msg = "Failed";
+              try {
+                msg = JSON.parse(xhr.responseText).error || msg;
+              } catch (_) {}
+              ui.state(msg, "failed");
+            }
+            resolve();
+          };
+          xhr.onerror = () => {
+            ui.state("Connection lost", "failed");
+            resolve();
+          };
+          ui.state("Sending");
+          xhr.send(file);
+        });
+      }
+
+      input.addEventListener("change", async () => {
+        const files = Array.from(input.files || []);
+        input.value = "";
+        const rows = files.map((f) => [f, row(f)]);
+        for (const [f, ui] of rows) await upload(f, ui);
+      });
+    </script>
+  </body>
+</html>

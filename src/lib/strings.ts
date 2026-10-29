@@ -226,6 +226,21 @@ export const strings = {
     explorerImported: (n: number) =>
       n === 1 ? "1 file added from Explorer" : `${n} files added from Explorer`,
     explorerLocked: "Unlock 0x-hub to add the files from Explorer.",
+    fromPhone: "From phone",
+    phoneTitle: "Receive from your phone",
+    phoneSteps:
+      "Scan the code with your iPhone camera, then pick photos or files. They're encrypted here as soon as they arrive.",
+    phoneSameWifi: "Your phone must be on the same Wi-Fi as this PC.",
+    phoneWarning:
+      "Use this only on your own, trusted Wi-Fi. The transfer inside the network isn't encrypted; the link is random and stops working when you close this window or after 10 minutes.",
+    phoneFirewall: "If Windows asks, allow 0x-hub on private networks.",
+    phoneExpiresIn: (min: number) =>
+      min <= 1 ? "Stops in under a minute" : `Stops in ${min} minutes`,
+    phoneReceived: (n: number) => (n === 1 ? "1 file received" : `${n} files received`),
+    phoneWaiting: "Waiting for files…",
+    phoneStopped: "The link has stopped.",
+    phoneRestart: "New link",
+    phoneDone: "Done",
     noPreview: "No preview for this file type.",
     officeHint: "Office files can't be previewed here. Open them in their app instead.",
     ocr: "Recognized text",
@@ -309,6 +324,13 @@ export const strings = {
     link: "Link",
     linkPrompt: "Link address",
     openNote: "Open note",
+    lockNote: "Lock note",
+    unlockNote: "Remove lock",
+    lockedTitle: "This note is locked",
+    lockedPreview: "Locked",
+    lockedDone: "Note locked",
+    unlockedDone: "Lock removed",
+    stickyLocked: "This note is locked. Open it in 0x-hub to see it.",
   },
   quickNote: {
     title: "Quick note",
@@ -414,7 +436,7 @@ export const strings = {
     licensesBody:
       "0x-hub is built with Tauri, React, Motion, TipTap, cmdk, pdf.js, lucide, SQLite, RustCrypto and other open-source software under MIT, Apache-2.0, ISC and BSD licenses.",
     privacy:
-      "Everything stays on this PC. The only network request is the update check against GitHub Releases.",
+      'Everything stays on this PC. Network use is limited to the update check against GitHub Releases and, only while "From phone" is open, a local Wi-Fi upload.',
   },
   updates: {
     dialogTitle: (v: string) => `0x-hub ${v} is available`,

@@ -99,6 +99,8 @@ const note = (
   updatedAt: now - id.length * 7_200_000,
   deletedAt: null,
   linkedDocumentIds: [],
+  locked: false,
+  revealed: false,
   ...extra,
 });
 
@@ -118,6 +120,7 @@ const notes: Note[] = [
     ],
   }),
   note("n333", "sticky", "", "Call the insurance about the windshield claim", { shade: 4 }),
+  note("n4444", "markdown", "Bank PINs", "Card 1234, online banking 5678", { locked: true }),
 ];
 
 let settings: AppSettings = {
@@ -136,6 +139,9 @@ let settings: AppSettings = {
   blurPreviews: true,
   explorerIntegration: false,
 };
+
+const hideLocked = (n: Note): Note =>
+  n.locked && !n.revealed ? { ...n, content: "", plain: "", items: [] } : n;
 
 export function installMockBackend() {
   const mode = new URLSearchParams(location.search).get("mock") ?? "unlocked";
@@ -191,9 +197,11 @@ export function installMockBackend() {
           documentCount: documents.filter((d) => d.categoryId === c.id).length,
         }));
       case "notes_list":
-        return args.trashed ? [] : notes;
-      case "note_get":
-        return notes.find((n) => n.id === args.id);
+        return args.trashed ? [] : notes.map(hideLocked);
+      case "note_get": {
+        const n = notes.find((x) => x.id === args.id);
+        return n && hideLocked(n);
+      }
       case "search_all":
         return documents
           .filter((d) => d.title.toLowerCase().includes(String(args.query).toLowerCase()))
@@ -218,6 +226,18 @@ export function installMockBackend() {
       }
       case "documents_export_many":
         return { exported: (args.ids as string[]).length, skipped: [] };
+      case "phone_upload_start":
+        return {
+          url: "http://192.168.178.24:52814/3f9c2a1b7e6d4c5a8b0e1f2a3b4c5d6e/",
+          qrSvg:
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>',
+          expiresAt: Date.now() + 600_000,
+        };
+      case "note_reveal": {
+        const n = notes.find((x) => x.id === args.id);
+        if (n) n.revealed = true;
+        return null;
+      }
       case "take_pending_imports":
         return [];
       case "document_preview_image":
