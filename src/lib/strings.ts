@@ -229,7 +229,7 @@ export const strings = {
     fromPhone: "From phone",
     phoneTitle: "Receive from your phone",
     phoneSteps:
-      "Scan the code with your iPhone camera, then pick photos or files. They're encrypted here as soon as they arrive.",
+      "Scan the code with your phone camera. Then scan paper documents page by page into one PDF, or pick photos and files. Everything is encrypted here as soon as it arrives.",
     phoneSameWifi: "Your phone must be on the same Wi-Fi as this PC.",
     phoneWarning:
       "Use this only on your own, trusted Wi-Fi. The transfer inside the network isn't encrypted; the link is random and stops working when you close this window or after 10 minutes.",

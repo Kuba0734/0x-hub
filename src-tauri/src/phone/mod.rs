@@ -10,6 +10,7 @@
 //! tells the user to use it on trusted networks only.
 
 mod http;
+mod scan;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -206,6 +207,48 @@ mod tests {
             crate::vault::read(&state.paths, &key, &docs[0].id).unwrap(),
             b"hello from the phone"
         );
+
+        // A two-page scan becomes one PDF document.
+        let page = crate::imaging::encode_pixels(
+            &crate::imaging::Pixels {
+                width: 40,
+                height: 56,
+                bgra: vec![240; 40 * 56 * 4],
+            },
+            crate::imaging::Format::Jpeg,
+        )
+        .unwrap();
+        let mut body = page.clone();
+        body.extend_from_slice(&page);
+        let (status, _) = request(
+            &info.url,
+            "POST",
+            &format!("{path}scan"),
+            &format!(
+                "X-Filename: Mietvertrag\r\nX-Scan-Pages: {},{}\r\n",
+                page.len(),
+                page.len()
+            ),
+            &body,
+        );
+        assert_eq!(status, 200);
+        let docs = crate::db::documents::list(&state.db(), &key, false).unwrap();
+        let scan = docs
+            .iter()
+            .find(|d| d.filename == "Mietvertrag.pdf")
+            .unwrap();
+        assert_eq!(scan.kind, "pdf");
+        let pdf = crate::vault::read(&state.paths, &key, &scan.id).unwrap();
+        assert_eq!(crate::pdf::edit::page_count(&pdf).unwrap(), 2);
+        // Mismatched page lengths are rejected.
+        let (status, _) = request(
+            &info.url,
+            "POST",
+            &format!("{path}scan"),
+            "X-Scan-Pages: 5,5\r\n",
+            b"short",
+        );
+        assert_eq!(status, 400);
 
         // Locking the vault ends the session.
         crate::auth::lock(&state).unwrap();

@@ -1,12 +1,13 @@
-//! Request handling for the phone upload server. Only two routes exist, both behind the
-//! session token: `GET /<token>/` (upload page) and `POST /<token>/upload` (one file).
+//! Request handling for the phone upload server. Three routes exist, all behind the
+//! session token: `GET /<token>/` (upload page), `POST /<token>/upload` (one file) and
+//! `POST /<token>/scan` (scanned pages, stored as one PDF).
 
 use std::io::Read;
 use std::sync::Arc;
 
 use tiny_http::{Header, Method, Request, Response};
 
-use super::{Notify, PhoneEvent};
+use super::{scan, Notify, PhoneEvent};
 use crate::state::AppState;
 use crate::vault::{import::import_bytes, MAX_FILE_BYTES};
 
@@ -25,7 +26,7 @@ fn send(req: Request, status: u16, content_type: &str, body: String) {
         header("Referrer-Policy", "no-referrer"),
         header(
             "Content-Security-Policy",
-            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'",
+            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';              connect-src 'self'; img-src blob: data:",
         ),
     ]
     .into_iter()
@@ -59,6 +60,26 @@ pub fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+fn header_value(req: &Request, name: &'static str) -> Option<String> {
+    req.headers()
+        .iter()
+        .find(|h| h.field.equiv(name))
+        .map(|h| h.value.as_str().to_string())
+}
+
+/// Reads the whole body (up to the vault's file limit), or answers with an error.
+fn read_body(req: &mut Request) -> Result<Vec<u8>, (u16, &'static str)> {
+    if req.body_length().is_some_and(|n| n as u64 > MAX_FILE_BYTES) {
+        return Err((413, "File is larger than 512 MB"));
+    }
+    let mut body = Vec::new();
+    req.as_reader()
+        .take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut body)
+        .map_err(|_| (400, "Upload interrupted"))?;
+    Ok(body)
+}
+
 pub fn handle(mut req: Request, token: &str, state: &Arc<AppState>, notify: &Notify) {
     let base = format!("/{token}/");
     let url = req.url().to_string();
@@ -72,34 +93,44 @@ pub fn handle(mut req: Request, token: &str, state: &Arc<AppState>, notify: &Not
             if !state.is_unlocked() {
                 return json(req, 423, serde_json::json!({ "error": "0x-hub is locked" }));
             }
-            let name = req
-                .headers()
-                .iter()
-                .find(|h| h.field.equiv("X-Filename"))
-                .map(|h| percent_decode(h.value.as_str()))
+            let name = header_value(&req, "X-Filename")
+                .map(|v| percent_decode(&v))
                 .filter(|n| !n.trim().is_empty())
                 .unwrap_or_else(|| "upload".into());
-            if req.body_length().is_some_and(|n| n as u64 > MAX_FILE_BYTES) {
-                return json(
-                    req,
-                    413,
-                    serde_json::json!({ "error": "File is larger than 512 MB" }),
-                );
-            }
-            let mut body = Vec::new();
-            if req
-                .as_reader()
-                .take(MAX_FILE_BYTES + 1)
-                .read_to_end(&mut body)
-                .is_err()
-            {
-                return json(
-                    req,
-                    400,
-                    serde_json::json!({ "error": "Upload interrupted" }),
-                );
-            }
+            let body = match read_body(&mut req) {
+                Ok(b) => b,
+                Err((status, msg)) => {
+                    return json(req, status, serde_json::json!({ "error": msg }))
+                }
+            };
             match import_bytes(state, &name, &body, None) {
+                Ok(id) => {
+                    notify(PhoneEvent::Received { name, id });
+                    json(req, 200, serde_json::json!({ "ok": true }))
+                }
+                Err(e) => json(req, 400, serde_json::json!({ "error": e.to_string() })),
+            }
+        }
+        (Method::Post, "scan") => {
+            if !state.is_unlocked() {
+                return json(req, 423, serde_json::json!({ "error": "0x-hub is locked" }));
+            }
+            let name = scan::pdf_name(
+                &header_value(&req, "X-Filename")
+                    .map(|v| percent_decode(&v))
+                    .unwrap_or_default(),
+            );
+            let lengths = header_value(&req, "X-Scan-Pages").unwrap_or_default();
+            let body = match read_body(&mut req) {
+                Ok(b) => b,
+                Err((status, msg)) => {
+                    return json(req, status, serde_json::json!({ "error": msg }))
+                }
+            };
+            let result = scan::split_pages(&body, &lengths)
+                .and_then(|pages| scan::assemble(&pages))
+                .and_then(|pdf| import_bytes(state, &name, &pdf, None));
+            match result {
                 Ok(id) => {
                     notify(PhoneEvent::Received { name, id });
                     json(req, 200, serde_json::json!({ "ok": true }))

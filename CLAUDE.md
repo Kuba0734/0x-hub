@@ -212,7 +212,7 @@ Shared: pin, grey "shade" label instead of color (5 greyscale tones), link to do
 ### Phone upload (the only inbound network feature)
 - Started only by the user ("From phone" on Documents); the server runs while that dialog is open.
 - Binds to the PC's private LAN IPv4 address only (never 0.0.0.0), on a random port.
-- Every URL contains a random 128-bit token; anything else gets 404. Two routes: the upload page and `POST upload`.
+- Every URL contains a random 128-bit token; anything else gets 404. Three routes: the upload page, `POST upload` (one file) and `POST scan` (pages photographed and straightened on the phone, sent in one request with their lengths in `X-Scan-Pages`, stored as one PDF).
 - Stops after 10 minutes, when the dialog closes, or when the vault locks. Files are encrypted into the vault straight from memory.
 - Plain HTTP inside the LAN (iOS rejects self-signed certificates); the dialog says to use it on trusted Wi-Fi only.
 - Do not add further network features without the user explicitly asking.
