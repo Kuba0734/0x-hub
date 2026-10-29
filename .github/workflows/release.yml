@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check versions match the tag
+        run: node scripts/check-version.mjs ${{ github.ref_name }}
+
+      - name: Checks
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+
+      - name: Read release notes from the tag annotation
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo "body<<__NOTES__"
+            git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)'
+            echo "__NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
+      # ---------------------------------------------------------------------------
+      # Authenticode code signing (DISABLED until a certificate exists).
+      # To enable:
+      #   1. Add secrets WINDOWS_CERTIFICATE (base64 .pfx) and WINDOWS_CERTIFICATE_PASSWORD.
+      #   2. Set `if: true` below.
+      #   3. Add the printed thumbprint to tauri.conf.json → bundle.windows.certificateThumbprint
+      #      (plus "digestAlgorithm": "sha256", "timestampUrl": "http://timestamp.digicert.com").
+      # ---------------------------------------------------------------------------
+      - name: Import Authenticode certificate
+        if: ${{ false }}
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+          Write-Host "Thumbprint: $($cert.Thumbprint)"
+          Remove-Item $pfx
+
+      - name: Build, sign updater artifacts and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "0x-hub ${{ github.ref_name }}"
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
