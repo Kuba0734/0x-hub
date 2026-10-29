@@ -61,6 +61,23 @@ pub fn safe_filename(name: &str) -> String {
     }
 }
 
+/// `dir/filename`, or `dir/stem (2).ext`, `(3)`, ... if that name is taken.
+pub fn unique_path(dir: &Path, filename: &str) -> PathBuf {
+    let name = safe_filename(filename);
+    let first = dir.join(&name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (name.clone(), String::new()),
+    };
+    (2..)
+        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap_or(first)
+}
+
 pub fn export_to(paths: &Paths, key: &SecretKey, id: &str, target: &Path) -> AppResult<()> {
     let data = read(paths, key, id)?;
     std::fs::write(target, data)?;
@@ -124,6 +141,20 @@ mod tests {
         remove(&paths, "abc").unwrap();
         remove(&paths, "abc").unwrap();
         assert!(matches!(read(&paths, &key, "abc"), Err(AppError::NotFound)));
+    }
+
+    #[test]
+    fn unique_paths_do_not_collide() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = unique_path(dir.path(), "scan.pdf");
+        std::fs::write(&a, b"1").unwrap();
+        let b = unique_path(dir.path(), "scan.pdf");
+        assert_eq!(b.file_name().unwrap(), "scan (2).pdf");
+        std::fs::write(&b, b"2").unwrap();
+        assert_eq!(
+            unique_path(dir.path(), "scan.pdf").file_name().unwrap(),
+            "scan (3).pdf"
+        );
     }
 
     #[test]

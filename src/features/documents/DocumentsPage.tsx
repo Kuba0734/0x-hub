@@ -1,4 +1,3 @@
-import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, SearchX, Upload } from "lucide-react";
 import { GlassButton } from "@/components/glass";
@@ -10,8 +9,7 @@ import { SkeletonGrid } from "@/components/ui/Skeleton";
 import { strings } from "@/lib/strings";
 import { useUi } from "@/stores/ui";
 import { CategoriesDialog } from "./components/CategoriesDialog";
-import { DocumentCard } from "./components/DocumentCard";
-import { DocumentRow } from "./components/DocumentRow";
+import { DocumentCollection } from "./components/DocumentCollection";
 import { DocumentsToolbar } from "./components/DocumentsToolbar";
 import { DropOverlay, FlyingChips } from "./components/DropZone";
 import { TrashList } from "./components/TrashList";
@@ -19,6 +17,8 @@ import { allTags, applyFilters, defaultFilters, type DocFilters } from "./filter
 import { useCategories, useDocuments } from "./queries";
 import { useDocumentActions } from "./useDocumentActions";
 import { useDocumentImport } from "./useDocumentImport";
+import { SelectionBar } from "./selection/SelectionBar";
+import { useSelection } from "./selection/useSelection";
 
 const VIEW_KEY = "0xhub.documents.view";
 const s = strings.documents;
@@ -52,6 +52,26 @@ export function DocumentsPage() {
 
   useEffect(() => localStorage.setItem(VIEW_KEY, view), [view]);
 
+  const selection = useSelection();
+  const order = useMemo(() => visible.map((d) => d.id), [visible]);
+  const selectedDocs = visible.filter((d) => selection.selected.has(d.id));
+  const { selectAll, clear } = selection;
+
+  // Ctrl+A selects everything visible, Escape clears (not while typing in a field).
+  useEffect(() => {
+    if (tab !== "active") return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea, [contenteditable=true], [role=dialog], [role=menu]")) return;
+      if (e.ctrlKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        selectAll(order);
+      } else if (e.key === "Escape") clear();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tab, order, selectAll, clear]);
+
   // "Upload document" from the palette or overview.
   const pendingUpload = useUi((st) => st.pendingUpload);
   const consumeUpload = useUi((st) => st.consumeUpload);
@@ -78,36 +98,16 @@ export function DocumentsPage() {
         />
       );
     if (!visible.length) return <EmptyState icon={<SearchX />} title={s.noMatches} />;
-    if (view === "list")
-      return (
-        <div className="flex flex-col">
-          <AnimatePresence initial={false}>
-            {visible.map((d) => (
-              <DocumentRow
-                key={d.id}
-                doc={d}
-                category={d.categoryId ? catById.get(d.categoryId) : undefined}
-                menu={menuFor(d)}
-                fresh={imp.fresh.has(d.id)}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      );
     return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-        <AnimatePresence initial={false}>
-          {visible.map((d) => (
-            <DocumentCard
-              key={d.id}
-              doc={d}
-              category={d.categoryId ? catById.get(d.categoryId) : undefined}
-              menu={menuFor(d)}
-              fresh={imp.fresh.has(d.id)}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+      <DocumentCollection
+        docs={visible}
+        view={view}
+        categories={catById}
+        menuFor={menuFor}
+        fresh={imp.fresh}
+        selected={selection.selected}
+        onSelect={(id, mods) => selection.select(id, order, mods)}
+      />
     );
   })();
 
@@ -152,6 +152,14 @@ export function DocumentsPage() {
           </>
         )}
       </div>
+      {tab === "active" && (
+        <SelectionBar
+          docs={selectedDocs}
+          categories={categories.data ?? []}
+          onSelectAll={() => selectAll(order)}
+          onClear={clear}
+        />
+      )}
       <DropOverlay drag={imp.drag} />
       <FlyingChips flying={imp.flying} onDone={imp.clearFlying} />
       <CategoriesDialog
