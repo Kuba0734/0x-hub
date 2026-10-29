@@ -75,6 +75,7 @@ export function ItemLayer({ items, heightPt, onPatch, onRemove }: Props) {
       <div
         key={item.key}
         role="group"
+        data-item
         aria-label={labels[item.kind]}
         tabIndex={0}
         onKeyDown={(e) => {

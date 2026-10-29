@@ -7,14 +7,12 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ipc, toIpcError, type DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
-import { useElementSize } from "@/lib/useElementSize";
 import { toast } from "@/stores/toasts";
 import { docKeys, useDocumentContent } from "../queries";
-import { PageCanvas } from "./PageCanvas";
+import { EditorPageView } from "./EditorPageView";
 import { PageStrip } from "./PageStrip";
 import * as edit from "./pdfEdit";
 import { EditorTray, type TrayPick } from "./EditorTray";
-import { ItemLayer } from "./ItemLayer";
 import { usePageSize } from "./usePageAspect";
 import { usePdfDocument } from "./usePdfDocument";
 
@@ -42,7 +40,6 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
   const [selected, setSelected] = useState("p0");
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [viewRef, view] = useElementSize<HTMLDivElement>();
 
   const pageCount = pdf?.numPages ?? 0;
   const state = edited ?? edit.initialState(pageCount);
@@ -56,7 +53,6 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
 
   const current = state.pages.find((p) => p.key === selected) ?? state.pages[0];
   const { aspect, heightPt } = usePageSize(pdf, (current?.source ?? 0) + 1, current?.rotate ?? 0);
-  const pageWidth = Math.floor(Math.max(120, Math.min(view.width, view.height * aspect)));
   const kept = state.pages.filter((p) => !p.removed).length;
   const dirty = edit.isDirty(state);
 
@@ -116,27 +112,15 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex h-[calc(85vh-340px)] min-h-[200px] gap-4">
-          <div ref={viewRef} className="flex min-w-0 flex-1 items-center justify-center">
-            <div className="relative" style={{ width: pageWidth }}>
-              <PageCanvas
-                pdf={pdf}
-                page={current.source + 1}
-                rotation={current.rotate}
-                width={pageWidth}
-                className="rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
-              />
-              {!current.removed && (
-                <ItemLayer
-                  // Remount per page so text boxes re-seed their content.
-                  key={current.key}
-                  items={items}
-                  heightPt={heightPt}
-                  onPatch={(key, patch) => setState((st) => edit.updateItem(st, key, patch))}
-                  onRemove={(key) => setState((st) => edit.removeItem(st, key))}
-                />
-              )}
-            </div>
-          </div>
+          <EditorPageView
+            pdf={pdf}
+            page={current}
+            items={items}
+            aspect={aspect}
+            heightPt={heightPt}
+            onPatch={(key, patch) => setState((st) => edit.updateItem(st, key, patch))}
+            onRemove={(key) => setState((st) => edit.removeItem(st, key))}
+          />
           <EditorTray onPick={place} disabled={current.removed} />
         </div>
         <PageStrip

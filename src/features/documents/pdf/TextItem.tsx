@@ -68,6 +68,7 @@ export function TextItem({
 
   return (
     <div
+      data-item
       className="group pointer-events-auto absolute"
       style={{ left: `${item.rect.x * 100}%`, top: `${item.rect.y * 100}%` }}
     >
