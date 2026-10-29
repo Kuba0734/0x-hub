@@ -107,7 +107,7 @@ pub async fn document_open_external(state: St<'_>, id: String) -> AppResult<()> 
     .await
 }
 
-/// Opens a locked document for a few minutes (see `auth::reveal_item`).
+/// Opens a locked document until its view closes (see `auth::reveal_item`).
 #[tauri::command]
 pub async fn document_reveal(
     app: AppHandle,

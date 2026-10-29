@@ -14,6 +14,8 @@ use crate::db::{self, keystore, settings};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
+pub mod verify;
+
 pub const EXTENSION: &str = "0xbackup";
 const MANIFEST: &str = "manifest.json";
 const DB_ENTRY: &str = "hub.db";
@@ -190,7 +192,8 @@ pub fn run_auto_backup(state: &AppState) -> AppResult<Option<PathBuf>> {
     Ok(Some(target))
 }
 
-fn prune_auto_backups(folder: &Path) -> AppResult<()> {
+/// Automatic backups in `folder`, oldest first.
+pub fn auto_backup_files(folder: &Path) -> AppResult<Vec<PathBuf>> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(folder)?
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
@@ -201,6 +204,11 @@ fn prune_auto_backups(folder: &Path) -> AppResult<()> {
         })
         .collect();
     files.sort();
+    Ok(files)
+}
+
+fn prune_auto_backups(folder: &Path) -> AppResult<()> {
+    let files = auto_backup_files(folder)?;
     if files.len() > AUTO_KEEP {
         for old in &files[..files.len() - AUTO_KEEP] {
             let _ = std::fs::remove_file(old);
@@ -216,7 +224,7 @@ mod tests {
     use crate::paths::Paths;
     use crate::{auth, vault};
 
-    fn state_in(dir: &Path, name: &str) -> AppState {
+    pub(super) fn state_in(dir: &Path, name: &str) -> AppState {
         let paths = Paths::at(dir.join(name), dir.join(format!("{name}-open")));
         AppState::open(paths, crypto::test_params()).unwrap()
     }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { queryClient } from "./queryClient";
 import { ipc, onEvent } from "@/lib/ipc";
+import { forgetRevealed } from "@/lib/useRevealSession";
 import { useSession } from "@/stores/session";
 import { useUi } from "@/stores/ui";
 import { useUpdates } from "@/stores/updates";
@@ -37,6 +38,8 @@ export function useAppEvents() {
         void queryClient.invalidateQueries({ queryKey: ["notes"] });
         void queryClient.invalidateQueries({ queryKey: ["overview"] });
       }),
+      // A locked item was closed: drop its decrypted data so the gate shows again.
+      onEvent("items://relocked", (ids) => ids.forEach((id) => forgetRevealed(queryClient, id))),
       onEvent("updates://check", () => void useUpdates.getState().check(true)),
     ];
     return () => offs.forEach((off) => off());

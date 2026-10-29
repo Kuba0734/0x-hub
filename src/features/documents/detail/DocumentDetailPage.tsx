@@ -14,9 +14,11 @@ import { GlassButton, GlassPanel, GlassTooltip } from "@/components/glass";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { strings } from "@/lib/strings";
+import { useRevealSession } from "@/lib/useRevealSession";
 import { toast } from "@/stores/toasts";
 import { useCategories, useDocument, useDocumentLifecycle, useUpdateDocument } from "../queries";
 import { exportDocument, openExternally } from "../useDocumentActions";
+import { DocumentTools } from "./DocumentTools";
 import { LockedGate } from "./LockedGate";
 import { MetaPanel } from "./MetaPanel";
 import { PreviewPane } from "./PreviewPane";
@@ -44,6 +46,7 @@ export function DocumentDetailPage() {
   const categories = useCategories();
   const update = useUpdateDocument();
   const { trash } = useDocumentLifecycle();
+  useRevealSession(doc?.id, doc?.locked ?? false);
 
   if (isLoading)
     return (
@@ -103,6 +106,7 @@ export function DocumentDetailPage() {
                 onClick={toggleLock}
               />
             </GlassTooltip>
+            <DocumentTools doc={doc} />
             <GlassButton size="sm" icon={<Download />} onClick={() => void exportDocument(doc)}>
               {s.export}
             </GlassButton>

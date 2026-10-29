@@ -19,18 +19,23 @@ export async function loadPdf(data: ArrayBuffer): Promise<LoadedPdf> {
   return { doc, destroy: () => task.destroy() };
 }
 
-/** Renders a page into `canvas` at `cssWidth` pixels wide (HiDPI aware). */
+/**
+ * Renders a page into `canvas` at `cssWidth` pixels wide (HiDPI aware). `extraRotation`
+ * (degrees, clockwise) is added to the page's own rotation.
+ */
 export async function renderPage(
   doc: PDFDocumentProxy,
   pageNumber: number,
   canvas: HTMLCanvasElement,
   cssWidth: number,
+  extraRotation = 0,
 ) {
   const page = await doc.getPage(pageNumber);
-  const base = page.getViewport({ scale: 1 });
+  const rotation = (((page.rotate + extraRotation) % 360) + 360) % 360;
+  const base = page.getViewport({ scale: 1, rotation });
   const dpr = window.devicePixelRatio || 1;
   const scale = (cssWidth / base.width) * dpr;
-  const viewport = page.getViewport({ scale });
+  const viewport = page.getViewport({ scale, rotation });
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
   canvas.style.width = `${cssWidth}px`;

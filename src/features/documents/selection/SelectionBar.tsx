@@ -1,17 +1,12 @@
 import { AnimatePresence } from "motion/react";
 import { useState } from "react";
-import { CheckCheck, Download, Lock, Pin, Tag, Trash2, X } from "lucide-react";
-import {
-  GlassButton,
-  GlassDialog,
-  GlassInput,
-  GlassPanel,
-  GlassSelect,
-  GlassTooltip,
-} from "@/components/glass";
+import { CheckCheck, Download, FileStack, Lock, Pin, Tag, Trash2, X } from "lucide-react";
+import { GlassButton, GlassPanel, GlassSelect, GlassTooltip } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
 import type { Category, DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
+import { CombineDialog } from "./CombineDialog";
+import { TagDialog } from "./TagDialog";
 import { useBatchActions } from "./useBatchActions";
 
 const s = strings.documents;
@@ -23,58 +18,12 @@ interface Props {
   onClear: () => void;
 }
 
-function TagDialog({
-  count,
-  open,
-  onClose,
-  onAdd,
-}: {
-  count: number;
-  open: boolean;
-  onClose: () => void;
-  onAdd: (tag: string) => void;
-}) {
-  const [tag, setTag] = useState("");
-  const submit = () => {
-    const t = tag.trim().replace(/^#/, "").toLowerCase();
-    if (t) onAdd(t);
-    setTag("");
-    onClose();
-  };
-  return (
-    <GlassDialog
-      open={open}
-      onClose={onClose}
-      title={s.tagDialogTitle(count)}
-      width={380}
-      footer={
-        <>
-          <GlassButton variant="ghost" onClick={onClose}>
-            {strings.common.cancel}
-          </GlassButton>
-          <GlassButton variant="primary" onClick={submit} disabled={!tag.trim()}>
-            {strings.common.add}
-          </GlassButton>
-        </>
-      }
-    >
-      <GlassInput
-        label={s.tags}
-        hideLabel
-        placeholder={s.tagPlaceholder}
-        value={tag}
-        onChange={(e) => setTag(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-        data-autofocus
-      />
-    </GlassDialog>
-  );
-}
-
 /** Floating glass bar with batch actions while documents are selected. */
 export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) {
   const batch = useBatchActions();
   const [tagging, setTagging] = useState(false);
+  const [combining, setCombining] = useState(false);
+  const allImages = docs.length > 0 && docs.every((d) => d.kind === "image");
   const allPinned = docs.length > 0 && docs.every((d) => d.pinned);
   const after = (p: Promise<unknown>) => void p.then(onClear);
 
@@ -141,6 +90,17 @@ export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) 
               >
                 {s.exportSelected}
               </GlassButton>
+              <GlassTooltip label={allImages ? s.combineToPdf : strings.pdfTools.combineOnlyImages}>
+                <GlassButton
+                  size="sm"
+                  variant="ghost"
+                  icon={<FileStack />}
+                  onClick={() => setCombining(true)}
+                  disabled={!allImages}
+                >
+                  {s.combineToPdf}
+                </GlassButton>
+              </GlassTooltip>
               <GlassButton
                 size="sm"
                 variant="ghost"
@@ -179,6 +139,12 @@ export function SelectionBar({ docs, categories, onSelectAll, onClear }: Props) 
         open={tagging}
         onClose={() => setTagging(false)}
         onAdd={(t) => after(batch.addTag(docs, t))}
+      />
+      <CombineDialog
+        docs={docs}
+        open={combining}
+        onClose={() => setCombining(false)}
+        onDone={onClear}
       />
     </>
   );

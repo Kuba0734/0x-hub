@@ -13,6 +13,11 @@ pub const MIN_PASSWORD_LEN: usize = 8;
 const CHECK_PLAINTEXT: &[u8] = b"0x-hub";
 const CHECK_AAD: &[u8] = b"0x-hub:dek-check:v1";
 
+/// Whether `key` is the DEK that produced `dek_check` (e.g. the one in a backup).
+pub fn key_matches(key: &SecretKey, dek_check: &[u8]) -> bool {
+    matches!(crypto::decrypt(key, dek_check, CHECK_AAD), Ok(v) if v == CHECK_PLAINTEXT)
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStatus {

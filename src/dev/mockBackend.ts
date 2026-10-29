@@ -4,7 +4,15 @@
  * Never bundled into production builds (guarded by import.meta.env.DEV in main.tsx).
  */
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { AppSettings, Category, DocumentItem, Note } from "@/lib/ipc";
+import type {
+  AppSettings,
+  Category,
+  DocumentItem,
+  IntegrityReport,
+  Note,
+  Signature,
+} from "@/lib/ipc";
+import { mockPdf } from "./mockPdf";
 
 const day = 86_400_000;
 const now = Date.now();
@@ -138,10 +146,34 @@ let settings: AppSettings = {
   skipVersion: null,
   blurPreviews: true,
   explorerIntegration: false,
+  integrity: { enabled: true, intervalDays: 7, includeBackups: true, lastRunAt: null },
 };
 
 const hideLocked = (n: Note): Note =>
   n.locked && !n.revealed ? { ...n, content: "", plain: "", items: [] } : n;
+
+let signatures: (Signature & { png: ArrayBuffer })[] = [];
+
+let integrityReport: IntegrityReport = {
+  ranAt: Date.now() - 3 * 86_400_000,
+  durationMs: 1200,
+  documents: 8,
+  notes: 5,
+  signatures: 0,
+  backups: [
+    { path: "D:\\Backups\\0x-hub-auto-20261020-0900.0xbackup", ok: true, decrypted: true },
+    { path: "D:\\Backups\\0x-hub-auto-20261027-0900.0xbackup", ok: false, decrypted: true },
+  ],
+  problems: [
+    {
+      kind: "backup_damaged",
+      itemId: null,
+      path: "D:\\Backups\\0x-hub-auto-20261027-0900.0xbackup",
+      detail: "vault/3f2a.bin: does not decrypt",
+    },
+    { kind: "size_mismatch", itemId: "d333", path: null, detail: "4096 bytes, expected 81234" },
+  ],
+};
 
 export function installMockBackend() {
   const mode = new URLSearchParams(location.search).get("mock") ?? "unlocked";
@@ -175,9 +207,48 @@ export function installMockBackend() {
         return false;
       case "settings_get":
         return settings;
-      case "settings_update":
-        settings = { ...settings, ...(args.patch as Partial<AppSettings>) };
+      case "settings_update": {
+        const patch = args.patch as Partial<AppSettings>;
+        settings = {
+          ...settings,
+          ...patch,
+          autoBackup: { ...settings.autoBackup, ...patch.autoBackup },
+          integrity: { ...settings.integrity, ...patch.integrity },
+        };
         return settings;
+      }
+      case "item_conceal": {
+        const item = [...documents, ...notes].find((x) => x.id === args.id);
+        if (item) item.revealed = false;
+        return null;
+      }
+      case "signatures_list":
+        return signatures.map(({ png: _png, ...sig }) => sig);
+      case "signature_image":
+        return signatures.find((x) => x.id === args.id)?.png.slice(0) ?? new ArrayBuffer(0);
+      case "signature_create": {
+        const png = new Uint8Array(args.image as number[]).buffer;
+        const sig = {
+          id: crypto.randomUUID(),
+          width: 600,
+          height: 200,
+          createdAt: Date.now(),
+          png,
+        };
+        signatures.unshift(sig);
+        return { ...sig, png: undefined };
+      }
+      case "signature_delete":
+        signatures = signatures.filter((x) => x.id !== args.id);
+        return null;
+      case "integrity_last_report":
+        return integrityReport;
+      case "integrity_run":
+        integrityReport = { ...integrityReport, ranAt: Date.now(), problems: [] };
+        return integrityReport;
+      case "document_pdf_edit":
+      case "documents_combine_images":
+        return documents[0]?.id ?? "";
       case "app_info":
         return { version: "0.1.0", dataDir: "C:\\Users\\you\\AppData\\Roaming\\0x-hub" };
       case "overview_stats":
@@ -243,7 +314,9 @@ export function installMockBackend() {
       case "document_preview_image":
         return fakeJpeg(Number(args.max));
       case "document_content":
-        return new ArrayBuffer(0);
+        return documents.find((d) => d.id === args.id)?.kind === "pdf"
+          ? mockPdf()
+          : new ArrayBuffer(0);
       default:
         return null;
     }

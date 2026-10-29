@@ -99,7 +99,7 @@ export interface DocumentItem {
   linkedNoteIds: string[];
   /** Content requires re-confirming identity (password or Windows Hello). */
   locked: boolean;
-  /** Locked but re-confirmed in the last few minutes. */
+  /** Locked, re-confirmed and currently open. */
   revealed: boolean;
 }
 
@@ -153,7 +153,7 @@ export interface Note extends NoteData {
   linkedDocumentIds: string[];
   /** Body requires re-confirming identity (password or Windows Hello). */
   locked: boolean;
-  /** Locked but re-confirmed in the last few minutes. */
+  /** Locked, re-confirmed and currently open. */
   revealed: boolean;
 }
 
@@ -174,6 +174,13 @@ export interface AutoBackup {
   lastRunAt: number | null;
 }
 
+export interface IntegritySettings {
+  enabled: boolean;
+  intervalDays: number;
+  includeBackups: boolean;
+  lastRunAt: number | null;
+}
+
 export interface AppSettings {
   autoLockMinutes: number;
   lockOnSessionLock: boolean;
@@ -189,11 +196,81 @@ export interface AppSettings {
   skipVersion: string | null;
   blurPreviews: boolean;
   explorerIntegration: boolean;
+  integrity: IntegritySettings;
 }
 
-export type SettingsPatch = Partial<Omit<AppSettings, "autoBackup">> & {
+export type SettingsPatch = Partial<Omit<AppSettings, "autoBackup" | "integrity">> & {
   autoBackup?: Partial<AutoBackup>;
+  integrity?: Partial<IntegritySettings>;
 };
+
+/** 0..1 page coordinates, origin top-left of the page as displayed. */
+export interface NormRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** One page of an edited PDF: 0-based source page plus extra clockwise rotation. */
+export interface PageOp {
+  source: number;
+  rotate: number;
+}
+
+/** A signature placed on page `page` (0-based, of the edited result). */
+export interface StampRequest {
+  page: number;
+  signatureId: string;
+  rect: NormRect;
+}
+
+export interface RedactBox {
+  page: number;
+  rect: NormRect;
+}
+
+export interface Signature {
+  id: string;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
+export type ProblemKind =
+  | "missing_file"
+  | "damaged_file"
+  | "size_mismatch"
+  | "damaged_record"
+  | "orphan_file"
+  | "database_damaged"
+  | "backup_unreadable"
+  | "backup_damaged"
+  | "backup_incomplete";
+
+export interface IntegrityProblem {
+  kind: ProblemKind;
+  itemId: string | null;
+  path: string | null;
+  detail: string | null;
+}
+
+export interface BackupStatus {
+  path: string;
+  ok: boolean;
+  /** Contents were decrypted, not only checksummed. */
+  decrypted: boolean;
+}
+
+export interface IntegrityReport {
+  ranAt: number;
+  durationMs: number;
+  documents: number;
+  notes: number;
+  signatures: number;
+  backups: BackupStatus[];
+  problems: IntegrityProblem[];
+}
 
 export interface OverviewStats {
   documents: number;
@@ -264,9 +341,32 @@ export const ipc = {
     openExternal: (id: string) => call<void>("document_open_external", { id }),
     exportMany: (ids: string[], folder: string) =>
       call<{ exported: number; skipped: string[] }>("documents_export_many", { ids, folder }),
-    /** Opens a locked document for a few minutes. Without a password: Windows Hello. */
+    /** Opens a locked document until its view closes. Without a password: Windows Hello. */
     reveal: (id: string, password?: string) =>
       call<void>("document_reveal", { id, password: password ?? null }),
+    /** Rewrites a PDF. With `copyTitle` the result is a new document. Resolves to its id. */
+    editPdf: (id: string, pages: PageOp[], stamps: StampRequest[], copyTitle?: string) =>
+      call<string>("document_pdf_edit", { id, pages, stamps, copyTitle: copyTitle ?? null }),
+    combineImages: (ids: string[], title: string) =>
+      call<string>("documents_combine_images", { ids, title }),
+    exportRedacted: (id: string, target: string, boxes: RedactBox[]) =>
+      call<void>("document_export_redacted", { id, target, boxes }),
+  },
+  signatures: {
+    list: () => call<Signature[]>("signatures_list"),
+    image: (id: string) => call<ArrayBuffer>("signature_image", { id }),
+    /** PNG bytes from the drawing canvas. */
+    create: (png: Uint8Array) => call<Signature>("signature_create", { image: Array.from(png) }),
+    importFile: (path: string) => call<Signature>("signature_import", { path }),
+    delete: (id: string) => call<void>("signature_delete", { id }),
+  },
+  integrity: {
+    run: () => call<IntegrityReport>("integrity_run"),
+    lastReport: () => call<IntegrityReport | null>("integrity_last_report"),
+    checkBackup: (path: string) =>
+      call<{ problems: IntegrityProblem[]; decrypted: boolean }>("integrity_check_backup", {
+        path,
+      }),
   },
   categories: {
     list: () => call<Category[]>("categories_list"),
@@ -291,6 +391,10 @@ export const ipc = {
       call<void>("note_reveal", { id, password: password ?? null }),
     unlink: (noteId: string, documentId: string) =>
       call<void>("link_delete", { noteId, documentId }),
+  },
+  items: {
+    /** Locks a document or note again after its view closed. */
+    conceal: (id: string) => call<void>("item_conceal", { id }),
   },
   phone: {
     start: () => call<PhoneSession>("phone_upload_start"),
@@ -323,6 +427,12 @@ export interface OcrProgress {
   status: OcrStatus;
 }
 
+export interface TaskProgress {
+  documentId: string;
+  done: number;
+  total: number;
+}
+
 interface EventMap {
   "vault://locked": string;
   "vault://unlocked": null;
@@ -335,6 +445,12 @@ interface EventMap {
   "import://requested": null;
   "phone://received": { name: string };
   "phone://stopped": string;
+  /** Locked items that were closed somewhere and must hide their content again. */
+  "items://relocked": string[];
+  "progress://integrity": { done: number; total: number };
+  "integrity://finished": IntegrityReport;
+  "progress://redact": TaskProgress;
+  "progress://pdf": TaskProgress;
 }
 
 export type AppEvent = keyof EventMap;

@@ -91,6 +91,18 @@ pub fn migrations() -> Migrations<'static> {
         M::up("ALTER TABLE documents ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;"),
         // 4: per-note lock
         M::up("ALTER TABLE notes ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;"),
+        // 5: stored signatures (encrypted PNG with transparency)
+        M::up(
+            r#"
+            CREATE TABLE signatures (
+                id TEXT PRIMARY KEY,
+                data BLOB NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            "#,
+        ),
     ])
 }
 
@@ -114,6 +126,6 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 }

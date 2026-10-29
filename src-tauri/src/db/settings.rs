@@ -25,6 +25,28 @@ impl Default for AutoBackup {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IntegritySettings {
+    /// Run the check in the background while the vault is unlocked.
+    pub enabled: bool,
+    pub interval_days: u32,
+    /// Also verify the automatic backups in the backup folder.
+    pub include_backups: bool,
+    pub last_run_at: Option<i64>,
+}
+
+impl Default for IntegritySettings {
+    fn default() -> Self {
+        IntegritySettings {
+            enabled: true,
+            interval_days: 7,
+            include_backups: true,
+            last_run_at: None,
+        }
+    }
+}
+
 /// Non-sensitive app settings, stored as one JSON value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -46,6 +68,7 @@ pub struct AppSettings {
     pub blur_previews: bool,
     /// "Send to" + Explorer context menu entries.
     pub explorer_integration: bool,
+    pub integrity: IntegritySettings,
 }
 
 impl Default for AppSettings {
@@ -65,6 +88,7 @@ impl Default for AppSettings {
             skip_version: None,
             blur_previews: true,
             explorer_integration: false,
+            integrity: IntegritySettings::default(),
         }
     }
 }
@@ -90,7 +114,8 @@ pub fn put(conn: &Connection, s: &AppSettings) -> AppResult<()> {
     Ok(())
 }
 
-/// Applies a partial JSON patch (top-level keys, `autoBackup` merged one level deep).
+/// Applies a partial JSON patch (top-level keys; nested objects such as `autoBackup` are
+/// merged one level deep).
 pub fn patch(conn: &Connection, patch: serde_json::Value) -> AppResult<AppSettings> {
     let current = get(conn)?;
     let mut value = serde_json::to_value(&current)?;

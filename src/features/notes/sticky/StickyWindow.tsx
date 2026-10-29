@@ -29,6 +29,14 @@ export function StickyWindow({ noteId }: { noteId: string }) {
   useEffect(load, [load]);
   useEffect(() => onEvent("vault://locked", () => setLocked("vault")), []);
   useEffect(() => onEvent("vault://unlocked", load), [load]);
+  // The note was closed in the main window: hide the text again.
+  useEffect(
+    () =>
+      onEvent("items://relocked", (ids) => {
+        if (ids.includes(noteId)) setLocked("note");
+      }),
+    [noteId],
+  );
 
   // Never write while hidden: the body we hold would be empty.
   const save = useCallback(

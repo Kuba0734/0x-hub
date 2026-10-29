@@ -125,8 +125,17 @@ pub async fn hello_unlock(app: AppHandle, state: St<'_>) -> AppResult<()> {
     Ok(())
 }
 
-/// Re-confirms identity for a locked document or note and opens it for a few minutes:
+/// Re-confirms identity for a locked document or note and opens it until its view closes:
 /// with `password`, or with Windows Hello when no password is given.
+/// Locks a document or note again because its view was closed. Other windows still
+/// showing it (e.g. a sticky pop-out) hide it too.
+#[tauri::command]
+pub fn item_conceal(app: AppHandle, state: St<'_>, id: String) {
+    if state.conceal(&id) {
+        let _ = app.emit("items://relocked", vec![id]);
+    }
+}
+
 pub(super) async fn reveal_item(
     app: &AppHandle,
     state: Arc<AppState>,

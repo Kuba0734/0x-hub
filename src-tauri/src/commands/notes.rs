@@ -63,7 +63,7 @@ pub fn note_update(app: AppHandle, state: St<'_>, id: String, patch: NotePatch) 
     Ok(with_access(&state, note))
 }
 
-/// Opens a locked note for a few minutes (see `auth::reveal_item`).
+/// Opens a locked note until its view closes (see `auth::reveal_item`).
 #[tauri::command]
 pub async fn note_reveal(
     app: AppHandle,

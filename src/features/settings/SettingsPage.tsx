@@ -1,6 +1,16 @@
 import { motion } from "motion/react";
 import { NavLink, useParams } from "react-router";
-import { Bell, Info, Keyboard, Palette, RefreshCw, Shield, Archive } from "lucide-react";
+import {
+  Archive,
+  Bell,
+  Info,
+  Keyboard,
+  Palette,
+  PenLine,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+} from "lucide-react";
 import { spring, StaggerItem, StaggerList } from "@/components/motion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/format";
@@ -10,8 +20,10 @@ import { AboutSection } from "./sections/AboutSection";
 import { AppearanceSection } from "./sections/AppearanceSection";
 import { BackupSection } from "./sections/BackupSection";
 import { HotkeySection } from "./sections/HotkeySection";
+import { IntegritySection } from "./sections/IntegritySection";
 import { NotificationsSection } from "./sections/NotificationsSection";
 import { SecuritySection } from "./sections/SecuritySection";
+import { SignaturesSection } from "./sections/SignaturesSection";
 import { UpdatesSection } from "./sections/UpdatesSection";
 
 const s = strings.settings;
@@ -21,6 +33,8 @@ const sections = [
   { id: "notifications", label: s.sections.notifications, icon: Bell },
   { id: "hotkey", label: s.sections.hotkey, icon: Keyboard },
   { id: "backup", label: s.sections.backup, icon: Archive },
+  { id: "integrity", label: s.sections.integrity, icon: ShieldCheck },
+  { id: "signatures", label: s.sections.signatures, icon: PenLine },
   { id: "updates", label: s.sections.updates, icon: RefreshCw },
   { id: "about", label: s.sections.about, icon: Info },
 ] as const;
@@ -47,6 +61,10 @@ export function SettingsPage() {
         return <HotkeySection settings={settings} />;
       case "backup":
         return <BackupSection settings={settings} />;
+      case "integrity":
+        return <IntegritySection settings={settings} />;
+      case "signatures":
+        return <SignaturesSection />;
       case "updates":
         return <UpdatesSection />;
       case "about":

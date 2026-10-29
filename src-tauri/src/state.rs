@@ -1,7 +1,6 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, Instant};
 
 use rusqlite::Connection;
 
@@ -17,14 +16,12 @@ pub struct AppState {
     db: Mutex<Connection>,
     dek: Mutex<Option<SecretKey>>,
     last_activity: AtomicI64,
-    /// Locked documents the user re-confirmed recently, with the time of confirmation.
-    revealed: Mutex<HashMap<String, Instant>>,
+    /// Locked documents and notes the user re-confirmed and still has open. Cleared when
+    /// their view closes and when the vault locks.
+    revealed: Mutex<HashSet<String>>,
     /// Files handed over by Explorer ("Send to", context menu) waiting for the UI.
     pending_imports: Mutex<Vec<String>>,
 }
-
-/// How long a locked document stays open after re-confirming with password or Hello.
-pub const REVEAL_TTL: Duration = Duration::from_secs(5 * 60);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // A panic while holding the lock must not brick the app; the data is still consistent
@@ -42,7 +39,7 @@ impl AppState {
             db: Mutex::new(conn),
             dek: Mutex::new(None),
             last_activity: AtomicI64::new(db::now_ms()),
-            revealed: Mutex::new(HashMap::new()),
+            revealed: Mutex::new(HashSet::new()),
             pending_imports: Mutex::new(Vec::new()),
         })
     }
@@ -77,13 +74,16 @@ impl AppState {
     }
 
     pub fn reveal(&self, id: &str) {
-        lock(&self.revealed).insert(id.to_string(), Instant::now());
+        lock(&self.revealed).insert(id.to_string());
     }
 
     pub fn is_revealed(&self, id: &str) -> bool {
-        let mut map = lock(&self.revealed);
-        map.retain(|_, t| t.elapsed() < REVEAL_TTL);
-        map.contains_key(id)
+        lock(&self.revealed).contains(id)
+    }
+
+    /// Locks an item again when its view closes. Returns whether it was open.
+    pub fn conceal(&self, id: &str) -> bool {
+        lock(&self.revealed).remove(id)
     }
 
     pub fn forget_revealed(&self) {
@@ -104,5 +104,25 @@ impl AppState {
 
     pub fn idle_ms(&self) -> i64 {
         db::now_ms() - self.last_activity.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reveals_last_until_concealed_or_locked() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::at(dir.path().join("d"), dir.path().join("o"));
+        let state = AppState::open(paths, crate::crypto::test_params()).unwrap();
+        state.reveal("a");
+        state.reveal("b");
+        assert!(state.is_revealed("a"));
+        assert!(state.conceal("a"));
+        assert!(!state.is_revealed("a"));
+        assert!(!state.conceal("a"));
+        state.forget_revealed();
+        assert!(!state.is_revealed("b"));
     }
 }

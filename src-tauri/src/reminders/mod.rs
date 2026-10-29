@@ -1,4 +1,5 @@
-//! Background scheduler: expiry reminders, idle auto-lock, trash purge and auto-backup.
+//! Background scheduler: expiry reminders, idle auto-lock, trash purge, auto-backup and
+//! the periodic integrity check.
 //! Runs in its own thread for the whole app lifetime, also while the window is in the tray.
 
 use std::sync::Arc;
@@ -11,7 +12,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::db::{self, documents, notes, settings};
 use crate::error::AppResult;
 use crate::state::AppState;
-use crate::{auth, backup, vault};
+use crate::{auth, backup, integrity, vault};
 
 const TICK: Duration = Duration::from_secs(20);
 const SLOW_EVERY_TICKS: u32 = 90; // ~30 minutes
@@ -72,6 +73,10 @@ pub fn spawn(app: AppHandle, state: Arc<AppState>) {
                         ("reminders", send_reminders(&app, &state)),
                         ("trash purge", purge_trash(&state)),
                         ("auto-backup", backup::run_auto_backup(&state).map(|_| ())),
+                        (
+                            "integrity check",
+                            integrity::run_if_due(&app, state.clone()),
+                        ),
                     ] {
                         if let Err(e) = result {
                             eprintln!("{name} failed: {e}");

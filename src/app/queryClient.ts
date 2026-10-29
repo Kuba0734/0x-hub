@@ -5,7 +5,7 @@ const noRetry = new Set(["locked", "document_locked"]);
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
-    // A locked document's 5-minute access window ran out: refetch so the gate reappears.
+    // A locked document was closed elsewhere (or the vault locked): refetch so the gate reappears.
     onError: (err) => {
       if (err instanceof IpcError && err.code === "document_locked") {
         void queryClient.invalidateQueries({ queryKey: ["documents", "one"] });

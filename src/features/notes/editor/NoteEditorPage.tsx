@@ -9,6 +9,7 @@ import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ipc, type Note, type NotePatch } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
+import { useRevealSession } from "@/lib/useRevealSession";
 import { noteShades } from "@/lib/tokens";
 import { toast } from "@/stores/toasts";
 import { noteKeys, useNote, useNoteLifecycle, useUpdateNote } from "../queries";
@@ -196,6 +197,7 @@ function LockedNote({ note }: { note: Note }) {
 export function NoteEditorPage() {
   const { id = "" } = useParams();
   const { data, isLoading, error, refetch } = useNote(id);
+  useRevealSession(data?.id, data?.locked ?? false);
   if (isLoading) return <Skeleton className="m-6 h-[calc(100%-48px)] rounded-3xl" />;
   if (error || !data)
     return (

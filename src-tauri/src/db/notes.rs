@@ -78,7 +78,7 @@ impl NotePatch {
     }
 }
 
-fn aad(id: &str) -> Vec<u8> {
+pub fn aad(id: &str) -> Vec<u8> {
     format!("note:{id}").into_bytes()
 }
 

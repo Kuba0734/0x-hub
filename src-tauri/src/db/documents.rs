@@ -374,6 +374,20 @@ pub fn is_locked(conn: &Connection, id: &str) -> AppResult<bool> {
     .ok_or(AppError::NotFound)
 }
 
+/// Records new file contents (e.g. after PDF edits): size, timestamp, and a fresh OCR run.
+pub fn replace_file(conn: &Connection, id: &str, size: i64, now: i64) -> AppResult<()> {
+    let n = conn.execute(
+        "UPDATE documents SET size = ?1, updated_at = ?2, ocr = NULL,
+         ocr_status = CASE WHEN kind IN ('image', 'pdf') THEN 'pending' ELSE 'none' END
+         WHERE id = ?3",
+        params![size, now, id],
+    )?;
+    if n == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(())
+}
+
 pub fn ocr_text(conn: &Connection, key: &SecretKey, id: &str) -> AppResult<Option<String>> {
     let blob: Option<Vec<u8>> = conn
         .query_row("SELECT ocr FROM documents WHERE id = ?1", [id], |r| {

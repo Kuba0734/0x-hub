@@ -1,10 +1,12 @@
 pub mod categories;
 pub mod documents;
+pub mod integrity;
 pub mod keystore;
 mod migrations;
 pub mod notes;
 pub mod search;
 pub mod settings;
+pub mod signatures;
 
 use std::path::Path;
 

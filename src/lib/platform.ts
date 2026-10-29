@@ -38,6 +38,18 @@ export const dialogs = {
     });
     return typeof r === "string" ? r : null;
   },
+  pickImage: async (): Promise<string | null> => {
+    const r = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "Images",
+          extensions: ["png", "jpg", "jpeg", "webp", "heic", "heif", "tif", "tiff", "bmp"],
+        },
+      ],
+    });
+    return typeof r === "string" ? r : null;
+  },
   saveFile: (defaultPath: string, filters?: { name: string; extensions: string[] }[]) =>
     save({ defaultPath, filters }),
 };

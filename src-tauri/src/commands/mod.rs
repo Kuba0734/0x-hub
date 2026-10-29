@@ -6,10 +6,13 @@ pub mod backup;
 pub mod categories;
 pub mod document_files;
 pub mod documents;
+pub mod integrity;
 pub mod notes;
+pub mod pdf_tools;
 pub mod phone;
 pub mod search;
 pub mod settings;
+pub mod signatures;
 
 use std::sync::Arc;
 

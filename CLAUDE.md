@@ -218,7 +218,7 @@ Shared: pin, grey "shade" label instead of color (5 greyscale tones), link to do
 - Do not add further network features without the user explicitly asking.
 
 ### Per-item lock
-- Documents and notes can be locked: content, OCR text, notes/body, export and "open externally" are only served after re-confirming with the master password or Windows Hello. Access lasts 5 minutes or until the vault locks (`AppState::reveal`).
+- Documents and notes can be locked: content, OCR text, notes/body, export and "open externally" are only served after re-confirming with the master password or Windows Hello. Access lasts only while the item is open: closing its view locks it again (`item_conceal`), and so does locking the vault (`AppState::reveal`).
 - Locked items keep only title/filename/tags in the search index.
 
 ## Auto-update via GitHub Releases

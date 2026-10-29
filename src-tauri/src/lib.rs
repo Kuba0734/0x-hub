@@ -7,8 +7,10 @@ mod error;
 mod hello;
 mod hotkey;
 mod imaging;
+mod integrity;
 mod ocr;
 mod paths;
+mod pdf;
 mod phone;
 mod popups;
 mod reminders;
@@ -134,6 +136,7 @@ pub fn run() {
             commands::auth::hello_enable,
             commands::auth::hello_disable,
             commands::auth::hello_unlock,
+            commands::auth::item_conceal,
             commands::documents::documents_list,
             commands::documents::document_get,
             commands::documents::documents_import,
@@ -149,6 +152,14 @@ pub fn run() {
             commands::document_files::documents_export_many,
             commands::document_files::document_open_external,
             commands::document_files::document_reveal,
+            commands::pdf_tools::document_pdf_edit,
+            commands::pdf_tools::documents_combine_images,
+            commands::pdf_tools::document_export_redacted,
+            commands::signatures::signatures_list,
+            commands::signatures::signature_image,
+            commands::signatures::signature_create,
+            commands::signatures::signature_import,
+            commands::signatures::signature_delete,
             commands::categories::categories_list,
             commands::categories::category_create,
             commands::categories::category_rename,
@@ -169,6 +180,9 @@ pub fn run() {
             commands::backup::backup_export,
             commands::backup::backup_import,
             commands::backup::backup_run_auto,
+            commands::integrity::integrity_run,
+            commands::integrity::integrity_last_report,
+            commands::integrity::integrity_check_backup,
         ])
         .build(tauri::generate_context!())
         .expect("error while building 0x-hub");
