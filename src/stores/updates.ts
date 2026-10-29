@@ -5,6 +5,8 @@ import { strings } from "@/lib/strings";
 import { useSettings } from "./settings";
 import { toast } from "./toasts";
 
+const AUTO_CHECK_GAP_MS = 60_000;
+
 export type UpdateStatus =
   "idle" | "checking" | "available" | "downloading" | "installing" | "error";
 
@@ -13,6 +15,8 @@ interface UpdateState {
   update: Update | null;
   progress: number;
   dialogOpen: boolean;
+  /** When the last check finished (ms), to skip checks right after one another. */
+  lastCheckAt: number;
   check: (manual: boolean) => Promise<void>;
   openDialog: () => void;
   closeDialog: () => void;
@@ -25,14 +29,20 @@ export const useUpdates = create<UpdateState>((set, get) => ({
   update: null,
   progress: 0,
   dialogOpen: false,
+  lastCheckAt: 0,
 
   check: async (manual) => {
     if (!inTauri()) return;
-    const busy = get().status;
+    const { status: busy, lastCheckAt } = get();
     if (busy === "checking" || busy === "downloading" || busy === "installing") return;
+    // Automatic checks (start, reopen from tray, timer) at most once a minute.
+    if (!manual && Date.now() - lastCheckAt < AUTO_CHECK_GAP_MS) return;
+    // An update already found stays offered; no need to ask GitHub again.
+    if (!manual && busy === "available") return;
     set({ status: "checking" });
     try {
       const update = await updater.check();
+      set({ lastCheckAt: Date.now() });
       const skipped = useSettings.getState().settings?.skipVersion;
       if (update && (manual || update.version !== skipped)) {
         set({ status: "available", update, dialogOpen: manual || get().dialogOpen });
@@ -41,7 +51,7 @@ export const useUpdates = create<UpdateState>((set, get) => ({
         if (manual) toast.show(strings.settings.updatesUpToDate);
       }
     } catch {
-      set({ status: "idle" });
+      set({ status: "idle", lastCheckAt: Date.now() });
       if (manual) toast.error(strings.errors.generic);
     }
   },

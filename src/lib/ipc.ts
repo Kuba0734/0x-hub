@@ -187,6 +187,7 @@ export interface AppSettings {
   closeToTray: boolean;
   reduceMotion: boolean | null;
   glassIntensity: number;
+  animatedBackground: boolean;
   sidebarCollapsed: boolean;
   notificationsEnabled: boolean;
   defaultReminderOffsets: number[];
@@ -218,12 +219,16 @@ export interface PageOp {
   rotate: number;
 }
 
-/** A signature placed on page `page` (0-based, of the edited result). */
-export interface StampRequest {
-  page: number;
-  signatureId: string;
-  rect: NormRect;
-}
+/** Something placed on page `page` (0-based, of the edited result). */
+export type ItemRequest = { page: number; rect: NormRect } & (
+  | { kind: "signature"; signatureId: string }
+  /** `fontSize` is a fraction of the displayed page height. */
+  | { kind: "text"; text: string; fontSize: number }
+  | { kind: "check" }
+  | { kind: "cross" }
+  /** White box: covers visually only, the content underneath stays in the file. */
+  | { kind: "cover" }
+);
 
 export interface RedactBox {
   page: number;
@@ -345,8 +350,8 @@ export const ipc = {
     reveal: (id: string, password?: string) =>
       call<void>("document_reveal", { id, password: password ?? null }),
     /** Rewrites a PDF. With `copyTitle` the result is a new document. Resolves to its id. */
-    editPdf: (id: string, pages: PageOp[], stamps: StampRequest[], copyTitle?: string) =>
-      call<string>("document_pdf_edit", { id, pages, stamps, copyTitle: copyTitle ?? null }),
+    editPdf: (id: string, pages: PageOp[], items: ItemRequest[], copyTitle?: string) =>
+      call<string>("document_pdf_edit", { id, pages, items, copyTitle: copyTitle ?? null }),
     combineImages: (ids: string[], title: string) =>
       call<string>("documents_combine_images", { ids, title }),
     exportRedacted: (id: string, target: string, boxes: RedactBox[]) =>
@@ -442,6 +447,8 @@ interface EventMap {
   "documents://changed": null;
   "notes://changed": string;
   "updates://check": null;
+  /** The main window was shown again after being hidden in the tray or minimized. */
+  "app://shown": null;
   "import://requested": null;
   "phone://received": { name: string };
   "phone://stopped": string;

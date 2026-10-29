@@ -2,6 +2,7 @@ import { useId } from "react";
 
 interface Props {
   label: string;
+  description?: string;
   value: number;
   min: number;
   max: number;
@@ -10,7 +11,16 @@ interface Props {
   format?: (v: number) => string;
 }
 
-export function GlassSlider({ label, value, min, max, step = 0.05, onChange, format }: Props) {
+export function GlassSlider({
+  label,
+  description,
+  value,
+  min,
+  max,
+  step = 0.05,
+  onChange,
+  format,
+}: Props) {
   const id = useId();
   const pct = ((value - min) / (max - min)) * 100;
   return (
@@ -21,6 +31,7 @@ export function GlassSlider({ label, value, min, max, step = 0.05, onChange, for
         </label>
         <span className="tabular text-[13px] text-fg-2">{format ? format(value) : value}</span>
       </div>
+      {description && <p className="-mt-1 text-[12px] text-fg-3">{description}</p>}
       <input
         id={id}
         type="range"

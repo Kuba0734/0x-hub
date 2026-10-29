@@ -1,9 +1,14 @@
+import { useSettings } from "@/stores/settings";
+
 /**
  * SVG filter used by `.glass--refract` via `backdrop-filter: url(#liquid-glass)`.
  * Low-frequency turbulence displaces the backdrop slightly for the "liquid" edge.
  * Rendered once at the app root.
  */
 export function LiquidFilter() {
+  // Refraction follows the glass intensity (scale 8–20 across the slider's range).
+  const intensity = useSettings((s) => s.settings?.glassIntensity ?? 1);
+  const scale = Math.round(Math.min(20, Math.max(8, 14 * intensity)));
   return (
     <svg width="0" height="0" aria-hidden="true" style={{ position: "absolute" }} focusable="false">
       <defs>
@@ -26,7 +31,7 @@ export function LiquidFilter() {
           <feDisplacementMap
             in="SourceGraphic"
             in2="soft"
-            scale="14"
+            scale={scale}
             xChannelSelector="R"
             yChannelSelector="G"
           />

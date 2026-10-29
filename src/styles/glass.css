@@ -28,7 +28,7 @@
 
 .glass--solid {
   /* For surfaces carrying lots of text (dialogs, palette): stronger fill keeps AA contrast. */
-  background: rgba(16, 16, 16, 0.72);
+  background: var(--glass-solid);
 }
 
 .glass-backdrop {
@@ -36,17 +36,17 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   pointer-events: none;
 }
 
 .glass--refract > .glass-backdrop {
-  backdrop-filter: blur(var(--glass-blur)) saturate(140%) url(#liquid-glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) url(#liquid-glass);
 }
 
 .glass--lite > .glass-backdrop {
   /* Cards in scrolling grids: cheaper blur, never refraction. */
-  backdrop-filter: blur(calc(var(--glass-blur) * 0.5)) saturate(130%);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.5)) saturate(calc(var(--glass-saturate) - 10%));
 }
 
 .glass-sheen {
@@ -59,7 +59,7 @@
     linear-gradient(180deg, var(--glass-highlight) 0, transparent 1px),
     radial-gradient(
       420px circle at var(--mx) var(--my),
-      rgba(255, 255, 255, calc(0.07 * var(--sheen))),
+      rgba(255, 255, 255, calc(0.07 * var(--sheen) * var(--glass-intensity))),
       transparent 60%
     );
   mask: linear-gradient(#000, #000);
@@ -72,74 +72,189 @@
 
 /* Reduce motion: no refraction, no cursor sheen. */
 [data-reduce-motion="true"] .glass--refract > .glass-backdrop {
-  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 [data-reduce-motion="true"] .glass-sheen {
   background: linear-gradient(180deg, var(--glass-highlight) 0, transparent 1px);
 }
 
-/* ---------- Ambient background ---------- */
+/* ---------- Ambient background ----------
+ * A monochrome light field for the glass to refract. Everything moves with transform or
+ * opacity only, so it stays on the compositor. */
 .ambient {
   position: fixed;
   inset: 0;
   z-index: -2;
   overflow: hidden;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.62);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 60%),
+    rgba(0, 0, 0, 0.6);
+}
+
+.ambient-field {
+  position: absolute;
+  inset: -40px;
+  transition: transform 900ms cubic-bezier(0.2, 0, 0, 1);
+  will-change: transform;
 }
 
 .ambient-blob {
   position: absolute;
   border-radius: 50%;
-  will-change: transform;
-  opacity: 0.55;
+  will-change: transform, opacity;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
 }
 
 .ambient-blob--a {
-  width: 60vmax;
-  height: 60vmax;
-  left: -15vmax;
-  top: -20vmax;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.09), transparent 65%);
-  animation: blob-a 48s ease-in-out infinite alternate;
+  width: 62vmax;
+  height: 62vmax;
+  left: -16vmax;
+  top: -22vmax;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 62%);
+  animation-name: blob-a;
+  animation-duration: 38s;
 }
 
 .ambient-blob--b {
-  width: 50vmax;
-  height: 50vmax;
-  right: -12vmax;
-  bottom: -18vmax;
-  background: radial-gradient(circle, rgba(200, 200, 200, 0.07), transparent 65%);
-  animation: blob-b 61s ease-in-out infinite alternate;
+  width: 54vmax;
+  height: 54vmax;
+  right: -14vmax;
+  bottom: -20vmax;
+  background: radial-gradient(circle, rgba(220, 220, 220, 0.13), transparent 62%);
+  animation-name: blob-b;
+  animation-duration: 47s;
 }
 
 .ambient-blob--c {
-  width: 34vmax;
-  height: 34vmax;
-  left: 40%;
-  top: 30%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.05), transparent 65%);
-  animation: blob-c 73s ease-in-out infinite alternate;
+  width: 36vmax;
+  height: 36vmax;
+  left: 38%;
+  top: 26%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.09), transparent 64%);
+  animation-name: blob-c;
+  animation-duration: 55s;
+}
+
+.ambient-blob--d {
+  width: 28vmax;
+  height: 28vmax;
+  left: 8%;
+  bottom: 4%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 64%);
+  animation-name: blob-d;
+  animation-duration: 43s;
+}
+
+.ambient-blob--e {
+  width: 24vmax;
+  height: 24vmax;
+  right: 12%;
+  top: 6%;
+  background: radial-gradient(circle, rgba(200, 200, 200, 0.08), transparent 64%);
+  animation-name: blob-e;
+  animation-duration: 61s;
+}
+
+/* A very soft beam slowly circling the window, so the light never looks static. */
+.ambient-sweep {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 160vmax;
+  height: 160vmax;
+  margin: -80vmax 0 0 -80vmax;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.035) 40deg,
+    transparent 95deg,
+    transparent 200deg,
+    rgba(255, 255, 255, 0.025) 245deg,
+    transparent 300deg
+  );
+  animation: sweep 140s linear infinite;
+  will-change: transform;
+}
+
+/* Static grain (rendered once) keeps the soft gradients from banding. */
+.ambient-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 
 @keyframes blob-a {
-  to {
-    transform: translate3d(18vmax, 12vmax, 0) scale(1.15);
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(14vmax, 6vmax, 0) scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(22vmax, 16vmax, 0) scale(0.96);
+    opacity: 0.8;
   }
 }
 @keyframes blob-b {
-  to {
-    transform: translate3d(-16vmax, -10vmax, 0) scale(0.9);
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-10vmax, -12vmax, 0) scale(0.9);
+  }
+  100% {
+    transform: translate3d(-20vmax, -6vmax, 0) scale(1.08);
   }
 }
 @keyframes blob-c {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(-16vmax, 10vmax, 0) scale(1.3);
+    opacity: 1;
+  }
+}
+@keyframes blob-d {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.9);
+  }
+  100% {
+    transform: translate3d(18vmax, -14vmax, 0) scale(1.15);
+  }
+}
+@keyframes blob-e {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-14vmax, 18vmax, 0) scale(0.9);
+    opacity: 0.6;
+  }
+}
+@keyframes sweep {
   to {
-    transform: translate3d(-12vmax, 8vmax, 0) scale(1.25);
+    transform: rotate(360deg);
   }
 }
 
-[data-reduce-motion="true"] .ambient-blob {
+/* Setting off: the light field stays where it is. */
+.ambient[data-moving="false"] .ambient-blob,
+.ambient[data-moving="false"] .ambient-sweep {
+  animation-play-state: paused;
+}
+
+[data-reduce-motion="true"] .ambient-blob,
+[data-reduce-motion="true"] .ambient-sweep {
   display: none;
 }
 

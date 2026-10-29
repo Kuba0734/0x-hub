@@ -1,11 +1,13 @@
-//! Page edits on an existing PDF: reorder, delete, rotate, and stamp images (signatures).
+//! Page edits on an existing PDF: reorder, delete, rotate, and place marks (signatures,
+//! text, check marks, cover boxes).
 
 use std::collections::HashSet;
 
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 use serde::Deserialize;
 
-use super::geometry::{normalize_rotation, NormRect, PageFrame};
+use super::geometry::{normalize_rotation, PageFrame};
+use super::marks::{self, Mark, MarkKind, FONT_NAME};
 use super::pdf_err;
 use crate::error::{AppError, AppResult};
 use crate::imaging::Pixels;
@@ -17,14 +19,6 @@ pub struct PageOp {
     pub source: u32,
     /// Extra clockwise rotation in degrees (multiples of 90).
     pub rotate: i32,
-}
-
-/// An image placed on output page `page` (0-based) at `rect` of the displayed page.
-pub struct Stamp {
-    pub page: usize,
-    pub rect: NormRect,
-    /// Index into the `images` passed to [`edit`].
-    pub image: usize,
 }
 
 /// Attributes a page may inherit from its ancestors in the page tree.
@@ -45,13 +39,8 @@ pub fn page_count(bytes: &[u8]) -> AppResult<u32> {
     Ok(load(bytes)?.get_pages().len() as u32)
 }
 
-/// Applies the new page list and stamps; returns the saved PDF.
-pub fn edit(
-    bytes: &[u8],
-    ops: &[PageOp],
-    stamps: &[Stamp],
-    images: &[Pixels],
-) -> AppResult<Vec<u8>> {
+/// Applies the new page list and marks; returns the saved PDF.
+pub fn edit(bytes: &[u8], ops: &[PageOp], marks: &[Mark], images: &[Pixels]) -> AppResult<Vec<u8>> {
     let mut doc = load(bytes)?;
     let pages: Vec<ObjectId> = doc.get_pages().into_values().collect();
     validate(ops, pages.len())?;
@@ -86,10 +75,21 @@ pub fn edit(
         .iter()
         .map(|img| add_image_xobject(&mut doc, img))
         .collect();
+    let has_text = marks
+        .iter()
+        .any(|m| matches!(m.kind, MarkKind::Text { .. }));
+    let font = has_text.then(|| {
+        doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+            "Encoding" => "WinAnsiEncoding",
+        })
+    });
     for (i, id) in kept.iter().enumerate() {
-        let on_page: Vec<&Stamp> = stamps.iter().filter(|s| s.page == i).collect();
+        let on_page: Vec<&Mark> = marks.iter().filter(|m| m.page == i).collect();
         if !on_page.is_empty() {
-            stamp_page(&mut doc, *id, &on_page, &xobjects)?;
+            mark_page(&mut doc, *id, &on_page, &xobjects, font)?;
         }
     }
 
@@ -216,35 +216,42 @@ fn owned_dict(doc: &Document, dict: &Dictionary, key: &[u8]) -> Dictionary {
         .unwrap_or_default()
 }
 
-fn stamp_page(
+fn mark_page(
     doc: &mut Document,
     page_id: ObjectId,
-    stamps: &[&Stamp],
+    marks: &[&Mark],
     xobjects: &[ObjectId],
+    font: Option<ObjectId>,
 ) -> AppResult<()> {
     let page = doc.get_dictionary(page_id).map_err(pdf_err)?.clone();
     let frame = frame_of(doc, &page);
 
-    // Resources and their XObject dictionary are copied inline, so pages sharing them keep theirs.
+    // Resources and their sub-dictionaries are copied inline, so pages sharing them keep theirs.
     let mut resources = owned_dict(doc, &page, b"Resources");
     let mut xdict = owned_dict(doc, &resources, b"XObject");
+    let mut fonts = owned_dict(doc, &resources, b"Font");
 
-    let mut ops = String::new();
-    for (n, s) in stamps.iter().enumerate() {
-        let (Some(&xobj), Some(rect)) = (xobjects.get(s.image), s.rect.clamped()) else {
-            continue;
+    let mut ops = Vec::new();
+    for (n, m) in marks.iter().enumerate() {
+        let name = match m.kind {
+            MarkKind::Image(i) => xobjects.get(i).map(|&xobj| {
+                let name = format!("ZxSig{n}");
+                xdict.set(name.as_bytes(), Object::Reference(xobj));
+                name
+            }),
+            _ => None,
         };
-        let name = format!("ZxSig{n}");
-        xdict.set(name.as_bytes(), Object::Reference(xobj));
-        let m = frame.image_matrix(rect);
-        ops.push_str(&format!(
-            "q {:.4} {:.4} {:.4} {:.4} {:.4} {:.4} cm /{name} Do Q\n",
-            m[0], m[1], m[2], m[3], m[4], m[5]
-        ));
+        ops.extend(marks::ops(frame, m, name.as_deref()));
     }
-    resources.set("XObject", Object::Dictionary(xdict));
+    if !xdict.is_empty() {
+        resources.set("XObject", Object::Dictionary(xdict));
+    }
+    if let Some(font) = font {
+        fonts.set(FONT_NAME, Object::Reference(font));
+        resources.set("Font", Object::Dictionary(fonts));
+    }
 
-    // Wrap the existing content in q/Q so its graphics state can't leak into the stamp.
+    // Wrap the existing content in q/Q so its graphics state can't leak into the marks.
     let mut contents: Vec<Object> = match page.get(b"Contents") {
         Ok(Object::Reference(id)) => vec![Object::Reference(*id)],
         Ok(Object::Array(a)) => a.clone(),
@@ -252,10 +259,10 @@ fn stamp_page(
     };
     let open = doc.add_object(Stream::new(Dictionary::new(), b"q\n".to_vec()));
     let close = doc.add_object(Stream::new(Dictionary::new(), b"\nQ\n".to_vec()));
-    let stamp = doc.add_object(Stream::new(Dictionary::new(), ops.into_bytes()));
+    let added = doc.add_object(Stream::new(Dictionary::new(), ops));
     contents.insert(0, Object::Reference(open));
     contents.push(Object::Reference(close));
-    contents.push(Object::Reference(stamp));
+    contents.push(Object::Reference(added));
 
     let page = doc.get_dictionary_mut(page_id).map_err(pdf_err)?;
     page.set("Resources", Object::Dictionary(resources));
@@ -266,6 +273,7 @@ fn stamp_page(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::pdf::geometry::NormRect;
 
     /// A small PDF with `n` pages; page i draws the marker text `Page<i>`.
     pub fn sample_pdf(n: usize) -> Vec<u8> {
@@ -380,16 +388,32 @@ pub(crate) mod tests {
             height: 1,
             bgra: vec![0, 0, 0, 255, 0, 0, 0, 0],
         };
-        let stamps = [Stamp {
-            page: 1,
-            rect: NormRect {
-                x: 0.5,
-                y: 0.8,
-                w: 0.3,
-                h: 0.1,
+        let rect = NormRect {
+            x: 0.5,
+            y: 0.8,
+            w: 0.3,
+            h: 0.1,
+        };
+        let stamps = [
+            Mark {
+                page: 1,
+                rect,
+                kind: MarkKind::Image(0),
             },
-            image: 0,
-        }];
+            Mark {
+                page: 1,
+                rect,
+                kind: MarkKind::Text {
+                    text: "Hello".into(),
+                    size: 0.02,
+                },
+            },
+            Mark {
+                page: 0,
+                rect,
+                kind: MarkKind::Check,
+            },
+        ];
         let ops = [
             PageOp {
                 source: 0,
@@ -402,8 +426,9 @@ pub(crate) mod tests {
         ];
         let out = edit(&src, &ops, &stamps, &[img]).unwrap();
         let texts = page_texts(&out);
-        assert!(!texts[0].contains("ZxSig"));
+        assert!(!texts[0].contains("ZxSig") && texts[0].contains("0.15 0.5 m"));
         assert!(texts[1].contains("/ZxSig0 Do") && texts[1].starts_with('q'));
+        assert!(texts[1].contains("/ZxHelv") && texts[1].contains("(Hello) Tj"));
         let doc = Document::load_mem(&out).unwrap();
         let has_mask = doc
             .objects

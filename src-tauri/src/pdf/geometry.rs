@@ -67,6 +67,16 @@ impl PageFrame {
         }
     }
 
+    /// Size of the page as displayed (rotation applied), in points.
+    pub fn displayed_size(self) -> (f64, f64) {
+        let (w, h) = (self.x1 - self.x0, self.y1 - self.y0);
+        if self.rotate == 90 || self.rotate == 270 {
+            (h, w)
+        } else {
+            (w, h)
+        }
+    }
+
     /// Displayed point (u right, v down, both 0..1) → user-space point.
     /// Viewers rotate pages clockwise by `/Rotate`.
     pub fn to_user(self, u: f64, v: f64) -> (f64, f64) {

@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { springSnappy } from "@/components/motion/presets";
+import { springSmooth, tween } from "@/components/motion/presets";
 import { cn } from "@/lib/format";
 
 export interface MenuItem {
@@ -83,8 +83,8 @@ function MenuBody({
       onKeyDown={onKeyDown}
       initial={{ opacity: 0, scale: 0.95, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.1 } }}
-      transition={springSnappy}
+      exit={{ opacity: 0, scale: 0.97, transition: tween.micro }}
+      transition={{ default: springSmooth, opacity: tween.micro }}
       style={{
         left: x,
         top: y,

@@ -1,6 +1,6 @@
 //! Main window helpers, the quick-note popup and sticky-note pop-out windows.
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::error::AppResult;
 
@@ -14,11 +14,17 @@ pub fn apply_glass(window: &WebviewWindow) {
     }
 }
 
+/// Brings the main window up (tray, second launch, hotkey popups). When it was hidden or
+/// minimized, the frontend hears `app://shown`, e.g. to check for updates.
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(MAIN) {
+        let was_away = !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false);
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        if was_away {
+            let _ = w.emit("app://shown", ());
+        }
     }
 }
 

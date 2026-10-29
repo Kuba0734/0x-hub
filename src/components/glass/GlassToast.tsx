@@ -1,7 +1,7 @@
 import type { PanInfo } from "motion/react";
 import { useEffect } from "react";
 import { AlertCircle, Check, X } from "lucide-react";
-import { spring } from "@/components/motion/presets";
+import { spring, tween } from "@/components/motion/presets";
 import { strings } from "@/lib/strings";
 import type { Toast } from "@/stores/toasts";
 import { GlassSurface } from "./GlassSurface";
@@ -33,8 +33,8 @@ export function GlassToast({ toast, onDismiss }: Props) {
       role={toast.tone === "error" ? "alert" : "status"}
       initial={{ opacity: 0, x: 60, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 120, transition: { duration: 0.18 } }}
-      transition={spring}
+      exit={{ opacity: 0, x: 120, transition: tween.standard }}
+      transition={{ default: spring, opacity: tween.standard }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={{ left: 0.05, right: 0.9 }}

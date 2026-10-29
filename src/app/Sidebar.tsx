@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { GlassPanel, GlassTooltip } from "@/components/glass";
-import { spring } from "@/components/motion/presets";
+import { spring, tween } from "@/components/motion/presets";
 import { cn } from "@/lib/format";
 import { strings } from "@/lib/strings";
 import { useSettings } from "@/stores/settings";
@@ -43,7 +43,7 @@ function NavEntry({
           className="relative truncate"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.06 }}
+          transition={{ ...tween.standard, delay: 0.06 }}
         >
           {item.label}
         </motion.span>

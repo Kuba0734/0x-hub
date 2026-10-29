@@ -9,6 +9,8 @@ import { useUpdates } from "@/stores/updates";
 const ACTIVITY_THROTTLE_MS = 30_000;
 const UPDATE_DELAY_MS = 5_000;
 const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Lets the window finish appearing before the network request. */
+const UPDATE_SHOWN_DELAY_MS = 1_500;
 
 /** Backend events, activity pings for auto-lock, global keys and scheduled update checks. */
 export function useAppEvents() {
@@ -78,17 +80,18 @@ export function useAppEvents() {
     return () => window.removeEventListener("keydown", onKey);
   }, [phase]);
 
-  // Update checks: after unlock (+5 s) and every 6 hours.
+  // Update checks: shortly after the app starts, whenever the window is opened again
+  // (tray, second launch), and every 6 hours. Locked or not: checking needs no vault
+  // access, and a found update shows as soon as the vault is unlocked.
   useEffect(() => {
-    if (phase !== "unlocked") return;
-    const first = window.setTimeout(() => void useUpdates.getState().check(false), UPDATE_DELAY_MS);
-    const every = window.setInterval(
-      () => void useUpdates.getState().check(false),
-      UPDATE_INTERVAL_MS,
-    );
+    const check = () => void useUpdates.getState().check(false);
+    const first = window.setTimeout(check, UPDATE_DELAY_MS);
+    const every = window.setInterval(check, UPDATE_INTERVAL_MS);
+    const offShown = onEvent("app://shown", () => window.setTimeout(check, UPDATE_SHOWN_DELAY_MS));
     return () => {
       window.clearTimeout(first);
       window.clearInterval(every);
+      offShown();
     };
-  }, [phase]);
+  }, []);
 }

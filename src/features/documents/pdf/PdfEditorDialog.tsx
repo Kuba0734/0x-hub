@@ -5,7 +5,7 @@ import { GlassButton, GlassDialog } from "@/components/glass";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ipc, toIpcError, type DocumentItem, type Signature } from "@/lib/ipc";
+import { ipc, toIpcError, type DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { useElementSize } from "@/lib/useElementSize";
 import { toast } from "@/stores/toasts";
@@ -13,9 +13,9 @@ import { docKeys, useDocumentContent } from "../queries";
 import { PageCanvas } from "./PageCanvas";
 import { PageStrip } from "./PageStrip";
 import * as edit from "./pdfEdit";
-import { SignatureTray } from "./SignatureTray";
-import { StampLayer } from "./StampLayer";
-import { usePageAspect } from "./usePageAspect";
+import { EditorTray, type TrayPick } from "./EditorTray";
+import { ItemLayer } from "./ItemLayer";
+import { usePageSize } from "./usePageAspect";
 import { usePdfDocument } from "./usePdfDocument";
 
 const s = strings.pdfTools;
@@ -28,7 +28,10 @@ interface Props {
   onClose: () => void;
 }
 
-/** Rotate, remove, reorder pages and place signatures; saves in place or as a copy. */
+/**
+ * Rotate, remove, reorder pages and add text, dates, marks, white boxes and signatures;
+ * saves in place or as a copy.
+ */
 export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -52,22 +55,35 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
   };
 
   const current = state.pages.find((p) => p.key === selected) ?? state.pages[0];
-  const aspect = usePageAspect(pdf, (current?.source ?? 0) + 1, current?.rotate ?? 0);
+  const { aspect, heightPt } = usePageSize(pdf, (current?.source ?? 0) + 1, current?.rotate ?? 0);
   const pageWidth = Math.floor(Math.max(120, Math.min(view.width, view.height * aspect)));
   const kept = state.pages.filter((p) => !p.removed).length;
   const dirty = edit.isDirty(state);
 
   const close = () => (dirty && !busy ? setConfirmClose(true) : finish());
 
-  const place = (sig: Signature) => {
+  const place = (pick: TrayPick) => {
     if (!current || current.removed) return;
-    const stamp: edit.PlacedStamp = {
-      key: crypto.randomUUID(),
-      pageKey: current.key,
-      signatureId: sig.id,
-      rect: edit.newStampRect(sig.width, sig.height, aspect),
-    };
-    setState((st) => ({ ...st, stamps: [...st.stamps, stamp] }));
+    const base = { key: crypto.randomUUID(), pageKey: current.key };
+    const n = state.items.filter((i) => i.pageKey === current.key).length;
+    const item: edit.PlacedItem =
+      pick.kind === "signature"
+        ? {
+            ...base,
+            kind: "signature",
+            signatureId: pick.signature.id,
+            rect: edit.newStampRect(pick.signature.width, pick.signature.height, aspect),
+          }
+        : pick.kind === "text"
+          ? {
+              ...base,
+              kind: "text",
+              text: pick.text,
+              fontSize: edit.DEFAULT_FONT_PT / heightPt,
+              rect: edit.newMarkRect("text", aspect, n),
+            }
+          : { ...base, kind: pick.kind, rect: edit.newMarkRect(pick.kind, aspect, n) };
+    setState((st) => edit.addItem(st, item));
   };
 
   const save = async (asCopy: boolean) => {
@@ -77,7 +93,7 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
       const id = await ipc.documents.editPdf(
         doc.id,
         req.pages,
-        req.stamps,
+        req.items,
         asCopy ? s.copyTitle(doc.title) : undefined,
       );
       await qc.invalidateQueries({ queryKey: docKeys.all });
@@ -96,7 +112,7 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
     if (content.error || failed)
       return <ErrorState message={content.error?.message} onRetry={() => void content.refetch()} />;
     if (!pdf || !current) return <Skeleton className="h-[calc(85vh-200px)] rounded-2xl" />;
-    const stamps = state.stamps.filter((st) => st.pageKey === current.key);
+    const items = state.items.filter((i) => i.pageKey === current.key);
     return (
       <div className="flex flex-col gap-4">
         <div className="flex h-[calc(85vh-340px)] min-h-[200px] gap-4">
@@ -110,22 +126,18 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
                 className="rounded-md shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
               />
               {!current.removed && (
-                <StampLayer
-                  stamps={stamps}
-                  onChange={(key, rect) =>
-                    setState((st) => ({
-                      ...st,
-                      stamps: st.stamps.map((x) => (x.key === key ? { ...x, rect } : x)),
-                    }))
-                  }
-                  onRemove={(key) =>
-                    setState((st) => ({ ...st, stamps: st.stamps.filter((x) => x.key !== key) }))
-                  }
+                <ItemLayer
+                  // Remount per page so text boxes re-seed their content.
+                  key={current.key}
+                  items={items}
+                  heightPt={heightPt}
+                  onPatch={(key, patch) => setState((st) => edit.updateItem(st, key, patch))}
+                  onRemove={(key) => setState((st) => edit.removeItem(st, key))}
                 />
               )}
             </div>
           </div>
-          <SignatureTray onPick={place} />
+          <EditorTray onPick={place} disabled={current.removed} />
         </div>
         <PageStrip
           pdf={pdf}
@@ -154,7 +166,7 @@ export function PdfEditorDialog({ doc, open, mode, onClose }: Props) {
             <p className="mr-auto self-center text-[12px] text-fg-3">
               {kept === 0
                 ? s.noPagesLeft
-                : `${s.pagesLeft(kept, state.pages.length)} · ${s.placed(state.stamps.length)} · ${s.overwriteHint}`}
+                : `${s.pagesLeft(kept, state.pages.length)} · ${s.placed(state.items.length)} · ${s.overwriteHint}`}
             </p>
             <GlassButton onClick={() => void save(true)} disabled={!dirty || busy || kept === 0}>
               {s.saveCopy}

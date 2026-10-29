@@ -57,6 +57,8 @@ pub struct AppSettings {
     /// `None` follows the Windows "Show animations" setting.
     pub reduce_motion: Option<bool>,
     pub glass_intensity: f32,
+    /// Moving ambient background behind the glass (still when off or with reduce motion).
+    pub animated_background: bool,
     pub sidebar_collapsed: bool,
     pub notifications_enabled: bool,
     pub default_reminder_offsets: Vec<u32>,
@@ -79,6 +81,7 @@ impl Default for AppSettings {
             close_to_tray: true,
             reduce_motion: None,
             glass_intensity: 1.0,
+            animated_background: true,
             sidebar_collapsed: false,
             notifications_enabled: true,
             default_reminder_offsets: vec![90, 30, 7, 1],

@@ -137,6 +137,7 @@ let settings: AppSettings = {
   closeToTray: true,
   reduceMotion: null,
   glassIntensity: 1,
+  animatedBackground: true,
   sidebarCollapsed: false,
   notificationsEnabled: true,
   defaultReminderOffsets: [90, 30, 7, 1],

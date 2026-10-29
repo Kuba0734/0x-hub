@@ -34,6 +34,7 @@ export function AppearanceSection({ settings }: { settings: AppSettings }) {
       </SettingRow>
       <GlassSlider
         label={s.glassIntensity}
+        description={s.glassIntensityHint}
         value={intensity}
         min={glassIntensity.min}
         max={glassIntensity.max}
@@ -46,6 +47,12 @@ export function AppearanceSection({ settings }: { settings: AppSettings }) {
           window.clearTimeout(timer.current);
           timer.current = window.setTimeout(() => void patch({ glassIntensity: v }), 300);
         }}
+      />
+      <GlassToggle
+        label={s.animatedBackground}
+        description={s.animatedBackgroundHint}
+        checked={settings.animatedBackground}
+        onChange={(v) => void patch({ animatedBackground: v })}
       />
       <GlassToggle
         label={s.sidebarDefault}

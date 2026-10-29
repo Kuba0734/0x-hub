@@ -28,7 +28,8 @@ function Pages() {
   const dir = nav.dir;
 
   return (
-    <AnimatePresence mode="wait" custom={dir} initial={false}>
+    // popLayout: the new page enters while the old one fades out on top, without a gap.
+    <AnimatePresence mode="popLayout" custom={dir} initial={false}>
       <PageTransition key={location.pathname} direction={dir} className="h-full">
         <Routes location={location}>
           <Route path="/" element={<OverviewPage />} />
@@ -55,7 +56,7 @@ export function Shell() {
       <TitleBar />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-hidden">{unlocked && <Pages />}</main>
+        <main className="relative min-w-0 flex-1 overflow-hidden">{unlocked && <Pages />}</main>
       </div>
       {unlocked && <CommandPalette />}
       {unlocked && <UpdateDialog />}

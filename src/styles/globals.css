@@ -9,10 +9,20 @@
   --bg-0: #000000;
   --bg-1: #0a0a0a;
   --bg-2: #141414;
-  --glass-fill: rgba(255, 255, 255, 0.04);
-  --glass-fill-hover: rgba(255, 255, 255, 0.07);
-  --glass-stroke: rgba(255, 255, 255, 0.1);
-  --glass-highlight: rgba(255, 255, 255, 0.22);
+  /* Glass intensity (Settings → Appearance), 0.4 … 1.4. Scales fill, edge, highlight,
+     blur and saturation together; at 1 the values match the design spec. */
+  --glass-intensity: 1;
+  /* Fill grows with the square so the ends of the slider are clearly different
+     (0.4 → almost clear, 1.4 → milky). */
+  --glass-fill: rgba(255, 255, 255, calc(0.04 * var(--glass-intensity) * var(--glass-intensity)));
+  --glass-fill-hover: rgba(
+    255,
+    255,
+    255,
+    calc(0.03 + 0.04 * var(--glass-intensity) * var(--glass-intensity))
+  );
+  --glass-stroke: rgba(255, 255, 255, calc(0.03 + 0.07 * var(--glass-intensity)));
+  --glass-highlight: rgba(255, 255, 255, calc(0.22 * var(--glass-intensity)));
   --text-1: #ffffff;
   --text-2: #a1a1a1;
   --text-3: #5c5c5c;
@@ -21,9 +31,10 @@
   --danger: #d4d4d4;
   --danger-bg: rgba(255, 255, 255, 0.08);
 
-  /* Glass intensity (Settings → Appearance), 0.4 … 1.4 */
-  --glass-intensity: 1;
   --glass-blur: calc(24px * var(--glass-intensity));
+  --glass-saturate: calc(100% + 40% * var(--glass-intensity));
+  /* Text-heavy surfaces stay readable (WCAG AA) at every intensity. */
+  --glass-solid: rgba(16, 16, 16, calc(0.56 + 0.16 * var(--glass-intensity)));
 
   --radius-card: 16px;
   --radius-panel: 24px;

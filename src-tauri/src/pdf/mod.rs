@@ -1,9 +1,10 @@
-//! PDF tools: page edits and signature stamps (lopdf), image → PDF, and flattened
+//! PDF tools: page edits, signatures, text and form marks (lopdf), image → PDF, and flattened
 //! redaction (pages rendered with `Windows.Data.Pdf`). Everything happens in memory.
 
 pub mod build;
 pub mod edit;
 pub mod geometry;
+pub mod marks;
 pub mod redact;
 mod render;
 

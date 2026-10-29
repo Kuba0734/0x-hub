@@ -1,5 +1,5 @@
 import { GlassSurface, type GlassSurfaceProps } from "./GlassSurface";
-import { hoverLift, spring } from "@/components/motion/presets";
+import { hoverLift, springSnappy } from "@/components/motion/presets";
 import { useReduceMotion } from "@/stores/settings";
 
 /** Large surface (sidebar, sections, dialogs): 24px radius, refraction on by default. */
@@ -21,7 +21,7 @@ export function GlassCard({ hoverable, lite = true, radius = 16, ...rest }: Glas
       radius={radius}
       interactive={hoverable}
       whileHover={hoverable && !reduce ? hoverLift : undefined}
-      transition={spring}
+      transition={springSnappy}
       {...rest}
     />
   );

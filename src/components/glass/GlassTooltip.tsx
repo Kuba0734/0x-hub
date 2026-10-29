@@ -8,7 +8,7 @@ import {
   type HTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
-import { springSnappy } from "@/components/motion/presets";
+import { springSnappy, tween } from "@/components/motion/presets";
 
 interface Props {
   label: string;
@@ -94,7 +94,7 @@ export function GlassTooltip({ label, side = "top", children, delay = 450 }: Pro
                 initial={{ opacity: 0, scale: 0.94 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                transition={springSnappy}
+                transition={{ default: springSnappy, opacity: tween.micro }}
                 className="glass glass--solid whitespace-nowrap px-2.5 py-1 text-[12px] text-fg"
                 style={{ ["--glass-radius" as string]: "8px" }}
               >

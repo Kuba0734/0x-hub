@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { scaleIn, spring, tween } from "@/components/motion/presets";
+import { scaleIn, springSmooth, tween } from "@/components/motion/presets";
 import { strings } from "@/lib/strings";
 import { cn } from "@/lib/format";
 import { GlassSurface } from "./GlassSurface";
@@ -66,7 +66,7 @@ export function GlassDialog({
             solid
             radius={24}
             layoutId={layoutId}
-            transition={spring}
+            transition={springSmooth}
             variants={layoutId ? undefined : scaleIn}
             initial={layoutId ? { opacity: 0 } : "hidden"}
             animate={layoutId ? { opacity: 1 } : "show"}

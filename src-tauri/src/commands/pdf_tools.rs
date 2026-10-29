@@ -1,4 +1,4 @@
-//! PDF tools: page edits and signatures, images → PDF, redacted export.
+//! PDF tools: page edits, signatures, text and form marks, images → PDF, redacted export.
 //! Like every content command, each one checks the per-document lock first.
 
 use std::collections::HashMap;
@@ -14,8 +14,9 @@ use crate::db::{self, search, signatures};
 use crate::error::{AppError, AppResult};
 use crate::imaging::{self, Format};
 use crate::ocr::{self, jobs::OcrQueue};
-use crate::pdf::edit::{self, PageOp, Stamp};
+use crate::pdf::edit::{self, PageOp};
 use crate::pdf::geometry::NormRect;
+use crate::pdf::marks::{Mark, MarkKind};
 use crate::pdf::{build, redact};
 use crate::state::AppState;
 use crate::vault;
@@ -23,13 +24,36 @@ use crate::vault;
 /// Most images combined into one PDF at a time.
 const MAX_COMBINE: usize = 100;
 
+/// Something to place on a page of the edited result (0-based `page`).
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StampRequest {
-    /// 0-based page of the edited result.
-    pub page: usize,
-    pub signature_id: String,
-    pub rect: NormRect,
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ItemRequest {
+    #[serde(rename_all = "camelCase")]
+    Signature {
+        page: usize,
+        rect: NormRect,
+        signature_id: String,
+    },
+    /// `font_size` is a fraction of the displayed page height.
+    #[serde(rename_all = "camelCase")]
+    Text {
+        page: usize,
+        rect: NormRect,
+        text: String,
+        font_size: f64,
+    },
+    Check {
+        page: usize,
+        rect: NormRect,
+    },
+    Cross {
+        page: usize,
+        rect: NormRect,
+    },
+    Cover {
+        page: usize,
+        rect: NormRect,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,7 +99,7 @@ fn store_copy(
     Ok(id)
 }
 
-/// Rewrites a PDF with the given page list and signature stamps. With `copy_title` the
+/// Rewrites a PDF with the given page list and placed items. With `copy_title` the
 /// result is saved as a new document; otherwise it replaces the original. Returns the id.
 #[tauri::command]
 pub async fn document_pdf_edit(
@@ -84,7 +108,7 @@ pub async fn document_pdf_edit(
     queue: State<'_, OcrQueue>,
     id: String,
     pages: Vec<PageOp>,
-    stamps: Vec<StampRequest>,
+    items: Vec<ItemRequest>,
     copy_title: Option<String>,
 ) -> AppResult<String> {
     let s = state.inner().clone();
@@ -102,25 +126,46 @@ pub async fn document_pdf_edit(
         let mut index: HashMap<String, usize> = HashMap::new();
         let mut images = vec![];
         let mut placed = vec![];
-        for st in &stamps {
-            let i = match index.get(&st.signature_id) {
-                Some(i) => *i,
-                None => {
-                    let png = signatures::image(&s.db(), &key, &st.signature_id)?;
-                    images.push(imaging::decode_pixels(
-                        &png,
-                        None,
-                        BitmapAlphaMode::Straight,
-                    )?);
-                    index.insert(st.signature_id.clone(), images.len() - 1);
-                    images.len() - 1
+        for item in items {
+            let (page, rect, kind) = match item {
+                ItemRequest::Signature {
+                    page,
+                    rect,
+                    signature_id,
+                } => {
+                    let i = match index.get(&signature_id) {
+                        Some(i) => *i,
+                        None => {
+                            let png = signatures::image(&s.db(), &key, &signature_id)?;
+                            images.push(imaging::decode_pixels(
+                                &png,
+                                None,
+                                BitmapAlphaMode::Straight,
+                            )?);
+                            index.insert(signature_id, images.len() - 1);
+                            images.len() - 1
+                        }
+                    };
+                    (page, rect, MarkKind::Image(i))
                 }
+                ItemRequest::Text {
+                    page,
+                    rect,
+                    text,
+                    font_size,
+                } => (
+                    page,
+                    rect,
+                    MarkKind::Text {
+                        text,
+                        size: font_size,
+                    },
+                ),
+                ItemRequest::Check { page, rect } => (page, rect, MarkKind::Check),
+                ItemRequest::Cross { page, rect } => (page, rect, MarkKind::Cross),
+                ItemRequest::Cover { page, rect } => (page, rect, MarkKind::Cover),
             };
-            placed.push(Stamp {
-                page: st.page,
-                rect: st.rect,
-                image: i,
-            });
+            placed.push(Mark { page, rect, kind });
         }
         let out = edit::edit(&bytes, &pages, &placed, &images)?;
 
@@ -237,4 +282,29 @@ pub async fn document_export_redacted(
         Ok(())
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn items_deserialize_from_frontend_json() {
+        let json = serde_json::json!([
+            { "kind": "signature", "page": 0, "signatureId": "s1",
+              "rect": { "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.1 } },
+            { "kind": "text", "page": 1, "text": "Berlin", "fontSize": 0.014,
+              "rect": { "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.02 } },
+            { "kind": "check", "page": 0, "rect": { "x": 0.5, "y": 0.5, "w": 0.03, "h": 0.02 } },
+            { "kind": "cross", "page": 0, "rect": { "x": 0.5, "y": 0.5, "w": 0.03, "h": 0.02 } },
+            { "kind": "cover", "page": 0, "rect": { "x": 0.5, "y": 0.5, "w": 0.2, "h": 0.05 } },
+        ]);
+        let items: Vec<ItemRequest> = serde_json::from_value(json).unwrap();
+        assert_eq!(items.len(), 5);
+        assert!(
+            matches!(&items[0], ItemRequest::Signature { signature_id, .. } if signature_id == "s1")
+        );
+        assert!(matches!(&items[1], ItemRequest::Text { font_size, .. } if *font_size == 0.014));
+        assert!(matches!(items[4], ItemRequest::Cover { .. }));
+    }
 }
