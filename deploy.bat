@@ -81,7 +81,7 @@ if defined PREV (
 
 echo [deploy] Committing...
 git add -A || goto :failed
-git commit -m "chore(release): %TAG%" || goto :failed
+git commit -m "%TAG%" || goto :failed
 git tag -a "%TAG%" -F "%NOTES%" || goto :failed
 del "%NOTES%" >nul 2>nul
 
