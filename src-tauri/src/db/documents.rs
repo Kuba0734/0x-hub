@@ -86,6 +86,9 @@ pub fn classify(filename: &str) -> (&'static str, &'static str) {
         "webp" => ("image", "image/webp"),
         "gif" => ("image", "image/gif"),
         "bmp" => ("image", "image/bmp"),
+        "heic" => ("image", "image/heic"),
+        "heif" => ("image", "image/heif"),
+        "tif" | "tiff" => ("image", "image/tiff"),
         "docx" => (
             "office",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -560,5 +563,6 @@ mod tests {
         assert_eq!(classify("photo.jpeg").0, "image");
         assert_eq!(classify("sheet.xlsx").0, "office");
         assert_eq!(classify("readme").0, "generic");
+        assert_eq!(classify("IMG_0042.HEIC"), ("image", "image/heic"));
     }
 }

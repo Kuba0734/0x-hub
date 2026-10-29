@@ -6,6 +6,7 @@ mod db;
 mod error;
 mod hello;
 mod hotkey;
+mod imaging;
 mod ocr;
 mod paths;
 mod popups;
@@ -120,6 +121,7 @@ pub fn run() {
             commands::documents::document_delete_forever,
             commands::documents::document_content,
             commands::documents::document_ocr_text,
+            commands::documents::document_preview_image,
             commands::documents::document_rerun_ocr,
             commands::documents::document_export,
             commands::documents::document_open_external,

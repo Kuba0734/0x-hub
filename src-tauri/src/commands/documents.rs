@@ -95,6 +95,21 @@ pub async fn document_content(state: St<'_>, id: String) -> AppResult<Response> 
     Ok(Response::new(bytes))
 }
 
+/// Upright JPEG rendition for images the WebView can't show natively (HEIC, TIFF),
+/// generated in memory. `max` caps the longer side (thumbnails use a small value).
+#[tauri::command]
+pub async fn document_preview_image(state: St<'_>, id: String, max: u32) -> AppResult<Response> {
+    let s = state.inner().clone();
+    let jpeg = blocking(move || {
+        crate::ocr::init_thread();
+        let key = s.key()?;
+        let bytes = vault::read(&s.paths, &key, &id)?;
+        crate::imaging::to_jpeg(&bytes, max.clamp(64, 4096))
+    })
+    .await?;
+    Ok(Response::new(jpeg))
+}
+
 #[tauri::command]
 pub fn document_ocr_text(state: St<'_>, id: String) -> AppResult<Option<String>> {
     let key = state.key()?;

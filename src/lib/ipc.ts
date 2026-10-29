@@ -235,6 +235,9 @@ export const ipc = {
     restore: (id: string) => call<void>("document_restore", { id }),
     deleteForever: (id: string) => call<void>("document_delete_forever", { id }),
     content: (id: string) => call<ArrayBuffer>("document_content", { id }),
+    /** Upright JPEG for images the WebView can't decode (HEIC/HEIF/TIFF). */
+    previewImage: (id: string, max: number) =>
+      call<ArrayBuffer>("document_preview_image", { id, max }),
     ocrText: (id: string) => call<string | null>("document_ocr_text", { id }),
     rerunOcr: (id: string) => call<void>("document_rerun_ocr", { id }),
     export: (id: string, target: string) => call<void>("document_export", { id, target }),

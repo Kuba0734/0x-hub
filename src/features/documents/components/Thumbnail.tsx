@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { File, FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
 import type { DocumentItem } from "@/lib/ipc";
 import { useObjectUrl } from "@/lib/useObjectUrl";
-import { useDocumentContent } from "../queries";
+import { useDocumentContent, useImageSource } from "../queries";
 
 const THUMB_MAX_BYTES = 15 * 1024 * 1024;
+/** Longer side of generated thumbnails for non-web images (HEIC, TIFF). */
+const THUMB_IMAGE_MAX = 480;
 
 export function KindIcon({ kind, className }: { kind: DocumentItem["kind"]; className?: string }) {
   const Icon = {
@@ -39,8 +41,9 @@ function useInView<T extends Element>() {
 export function Thumbnail({ doc, className }: { doc: DocumentItem; className?: string }) {
   const { ref, seen } = useInView<HTMLDivElement>();
   const wants = (doc.kind === "image" || doc.kind === "pdf") && doc.size <= THUMB_MAX_BYTES;
-  const { data } = useDocumentContent(doc.id, seen && wants);
-  const url = useObjectUrl(doc.kind === "image" ? data : undefined, doc.mime);
+  const { data } = useDocumentContent(doc.id, seen && wants && doc.kind === "pdf");
+  const image = useImageSource(doc, THUMB_IMAGE_MAX, seen && wants && doc.kind === "image");
+  const url = useObjectUrl(image.data, image.mime);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [pdfReady, setPdfReady] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);

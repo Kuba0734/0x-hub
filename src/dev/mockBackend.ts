@@ -57,7 +57,26 @@ const documents: DocumentItem[] = [
   doc("d4444", "Rental contract", "office", "contracts", { expiresOn: iso(200) }),
   doc("d55555", "Vaccination record", "pdf", "medical", { expiresOn: iso(-3) }),
   doc("d666666", "Wi-Fi password", "text", null),
+  doc("d7777777", "Receipt photo", "image", "finance", {
+    filename: "IMG_0042.HEIC",
+    mime: "image/heic",
+  }),
 ];
+
+/** Stand-in for the backend's HEIC→JPEG rendition: a grey gradient JPEG. */
+async function fakeJpeg(max: number): Promise<ArrayBuffer> {
+  const c = document.createElement("canvas");
+  c.width = Math.min(max, 1200);
+  c.height = Math.round(c.width * 0.75);
+  const g = c.getContext("2d")!;
+  const grad = g.createLinearGradient(0, 0, c.width, c.height);
+  grad.addColorStop(0, "#d9d9d9");
+  grad.addColorStop(1, "#3a3a3a");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, c.width, c.height);
+  const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/jpeg", 0.8));
+  return blob.arrayBuffer();
+}
 
 const note = (
   id: string,
@@ -177,6 +196,8 @@ export function installMockBackend() {
             }));
         case "document_ocr_text":
           return "REPUBLIC OF NOWHERE · PASSPORT · No. X1234567";
+        case "document_preview_image":
+          return fakeJpeg(Number(args.max));
         case "document_content":
           return new ArrayBuffer(0);
         default:

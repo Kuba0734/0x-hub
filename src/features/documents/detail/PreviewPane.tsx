@@ -7,7 +7,7 @@ import { formatBytes } from "@/lib/format";
 import type { DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { KindIcon } from "../components/Thumbnail";
-import { useDocumentContent } from "../queries";
+import { useDocumentContent, useImageSource } from "../queries";
 import { openExternally } from "../useDocumentActions";
 import { ImageViewer } from "./ImageViewer";
 import { PdfViewer } from "./PdfViewer";
@@ -47,14 +47,23 @@ function NoPreview({ doc }: { doc: DocumentItem }) {
   );
 }
 
+const IMAGE_PREVIEW_MAX = 3200;
+
+function ImagePreview({ doc }: { doc: DocumentItem }) {
+  const { data, mime, isLoading, error, refetch } = useImageSource(doc, IMAGE_PREVIEW_MAX);
+  if (isLoading) return <Skeleton className="m-6 h-[calc(100%-48px)]" />;
+  if (error || !data) return <ErrorState message={error?.message} onRetry={() => void refetch()} />;
+  return <ImageViewer data={data} mime={mime} />;
+}
+
 export function PreviewPane({ doc }: { doc: DocumentItem }) {
-  const previewable = doc.kind === "pdf" || doc.kind === "image" || doc.kind === "text";
+  const previewable = doc.kind === "pdf" || doc.kind === "text";
   const { data, isLoading, error, refetch } = useDocumentContent(doc.id, previewable);
 
+  if (doc.kind === "image") return <ImagePreview doc={doc} />;
   if (!previewable) return <NoPreview doc={doc} />;
   if (isLoading) return <Skeleton className="m-6 h-[calc(100%-48px)]" />;
   if (error || !data) return <ErrorState message={error?.message} onRetry={() => void refetch()} />;
   if (doc.kind === "pdf") return <PdfViewer data={data} />;
-  if (doc.kind === "image") return <ImageViewer data={data} mime={doc.mime} />;
   return <TextPreview data={data} />;
 }

@@ -8,6 +8,7 @@ export const docKeys = {
   one: (id: string) => ["documents", "one", id] as const,
   ocr: (id: string) => ["documents", "ocr", id] as const,
   content: (id: string) => ["documents", "content", id] as const,
+  preview: (id: string, max: number) => ["documents", "preview", id, max] as const,
   categories: ["categories"] as const,
 };
 
@@ -36,6 +37,38 @@ export function useDocumentContent(id: string, enabled = true) {
     staleTime: 5 * 60_000,
     gcTime: 60_000,
   });
+}
+
+/** Image types Chromium/WebView2 can display directly. */
+const WEB_IMAGE_MIMES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/bmp",
+]);
+
+export function isWebImage(mime: string): boolean {
+  return WEB_IMAGE_MIMES.has(mime);
+}
+
+/**
+ * Displayable bytes for an image document: the decrypted file when the WebView can show it,
+ * otherwise an in-memory JPEG rendition from the backend (HEIC, TIFF).
+ */
+export function useImageSource(doc: DocumentItem, max: number, enabled = true) {
+  const native = isWebImage(doc.mime);
+  const content = useDocumentContent(doc.id, enabled && native);
+  const preview = useQuery({
+    queryKey: docKeys.preview(doc.id, max),
+    queryFn: () => ipc.documents.previewImage(doc.id, max),
+    enabled: enabled && !native,
+    staleTime: 5 * 60_000,
+    gcTime: 60_000,
+    retry: false,
+  });
+  const q = native ? content : preview;
+  return { ...q, mime: native ? doc.mime : "image/jpeg" };
 }
 
 export function useUpdateDocument() {

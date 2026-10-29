@@ -5,12 +5,15 @@ pub mod jobs;
 
 use windows::core::Interface;
 use windows::Data::Pdf::{PdfDocument, PdfPageRenderOptions};
-use windows::Graphics::Imaging::{BitmapDecoder, BitmapPixelFormat, SoftwareBitmap};
+use windows::Graphics::Imaging::{
+    BitmapAlphaMode, BitmapDecoder, BitmapPixelFormat, SoftwareBitmap,
+};
 use windows::Media::Ocr::OcrEngine;
-use windows::Storage::Streams::{DataWriter, IRandomAccessStream, InMemoryRandomAccessStream};
+use windows::Storage::Streams::{IRandomAccessStream, InMemoryRandomAccessStream};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 use crate::error::{AppError, AppResult};
+use crate::imaging::{decode_oriented, stream_from_bytes};
 
 /// Upper bound on rendered pages per PDF, to keep background work predictable.
 pub const MAX_PDF_PAGES: u32 = 40;
@@ -25,17 +28,6 @@ pub fn init_thread() {
 fn engine() -> AppResult<OcrEngine> {
     OcrEngine::TryCreateFromUserProfileLanguages()
         .map_err(|_| AppError::Windows("No OCR language is installed in Windows".into()))
-}
-
-fn stream_from_bytes(bytes: &[u8]) -> AppResult<IRandomAccessStream> {
-    let stream = InMemoryRandomAccessStream::new()?;
-    let writer = DataWriter::CreateDataWriter(&stream)?;
-    writer.WriteBytes(bytes)?;
-    writer.StoreAsync()?.get()?;
-    writer.FlushAsync()?.get()?;
-    writer.DetachStream()?;
-    stream.Seek(0)?;
-    Ok(stream.cast()?)
 }
 
 fn decode(stream: &IRandomAccessStream) -> AppResult<SoftwareBitmap> {
@@ -54,9 +46,14 @@ fn recognize(engine: &OcrEngine, bitmap: &SoftwareBitmap) -> AppResult<String> {
     Ok(result.Text()?.to_string_lossy())
 }
 
+/// Phone photos (incl. HEIC) are decoded upright and scaled to the engine's limit.
 pub fn image_text(bytes: &[u8]) -> AppResult<String> {
     let engine = engine()?;
-    let bitmap = decode(&stream_from_bytes(bytes)?)?;
+    let bitmap = decode_oriented(
+        &stream_from_bytes(bytes)?,
+        Some(OcrEngine::MaxImageDimension()?),
+        BitmapAlphaMode::Premultiplied,
+    )?;
     recognize(&engine, &bitmap)
 }
 
