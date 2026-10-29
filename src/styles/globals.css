@@ -1,8 +1,8 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
-@import "./glass.css";
-@import "./editor.css";
+@import "./glass.css" layer(components);
+@import "./editor.css" layer(components);
 
 /* ---------- Design tokens (mirrored in src/lib/tokens.ts) ---------- */
 :root {
