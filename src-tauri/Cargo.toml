@@ -1,6 +1,6 @@
 [package]
 name = "zero-x-hub"
-version = "0.1.0"
+version = "0.1.1"
 description = "0x-hub — encrypted documents, notes and overview for Windows"
 authors = ["Kuba0734"]
 edition = "2021"
