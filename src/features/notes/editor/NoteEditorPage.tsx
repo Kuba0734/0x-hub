@@ -1,15 +1,17 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, ExternalLink, Pin, PinOff, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Lock, LockOpen, Pin, PinOff, Trash2 } from "lucide-react";
 import { GlassButton, GlassPanel, GlassTooltip } from "@/components/glass";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { RevealGate } from "@/components/ui/RevealGate";
 import { SavedIndicator } from "@/components/ui/SavedIndicator";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ipc, type Note, type NotePatch } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
 import { noteShades } from "@/lib/tokens";
 import { toast } from "@/stores/toasts";
-import { useNote, useNoteLifecycle, useUpdateNote } from "../queries";
+import { noteKeys, useNote, useNoteLifecycle, useUpdateNote } from "../queries";
 import { useAutosave } from "../useAutosave";
 import { ChecklistEditor } from "./ChecklistEditor";
 import { LinkedDocuments } from "./LinkedDocuments";
@@ -75,6 +77,22 @@ function Editor({ note }: { note: Note }) {
             onClick={() => {
               setPinned(!pinned);
               change({ pinned: !pinned });
+            }}
+          />
+        </GlassTooltip>
+        <GlassTooltip label={note.locked ? s.unlockNote : s.lockNote}>
+          <GlassButton
+            size="sm"
+            iconOnly
+            aria-label={note.locked ? s.unlockNote : s.lockNote}
+            aria-pressed={note.locked}
+            icon={note.locked ? <LockOpen /> : <Lock />}
+            onClick={async () => {
+              await auto.flush();
+              update.mutate(
+                { id: note.id, patch: { locked: !note.locked } },
+                { onSuccess: () => toast.show(note.locked ? s.unlockedDone : s.lockedDone) },
+              );
             }}
           />
         </GlassTooltip>
@@ -148,6 +166,33 @@ function Editor({ note }: { note: Note }) {
   );
 }
 
+function LockedNote({ note }: { note: Note }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  return (
+    <div className="flex h-full flex-col gap-4 p-6">
+      <div className="flex items-center gap-2">
+        <GlassButton
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={<ArrowLeft />}
+          aria-label={strings.common.back}
+          onClick={() => navigate("/notes")}
+        />
+        <h1 className="truncate px-1 text-[20px]">{note.title || strings.common.untitled}</h1>
+      </div>
+      <RevealGate
+        title={s.lockedTitle}
+        onReveal={async (password) => {
+          await ipc.notes.reveal(note.id, password);
+          await qc.invalidateQueries({ queryKey: noteKeys.all });
+        }}
+      />
+    </div>
+  );
+}
+
 export function NoteEditorPage() {
   const { id = "" } = useParams();
   const { data, isLoading, error, refetch } = useNote(id);
@@ -159,5 +204,7 @@ export function NoteEditorPage() {
         onRetry={() => void refetch()}
       />
     );
-  return <Editor key={data.id} note={data} />;
+  if (data.locked && !data.revealed) return <LockedNote note={data} />;
+  // Remount when access changes so the editors start from the real (or hidden) body.
+  return <Editor key={`${data.id}-${data.locked}-${data.revealed}`} note={data} />;
 }

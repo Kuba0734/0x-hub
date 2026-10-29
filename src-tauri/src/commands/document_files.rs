@@ -7,8 +7,8 @@ use tauri::AppHandle;
 use super::documents::ensure_access;
 use super::{blocking, St};
 use crate::db::documents;
-use crate::error::{AppError, AppResult};
-use crate::{auth, hello, ocr, vault};
+use crate::error::AppResult;
+use crate::{ocr, vault};
 
 /// Decrypted file bytes for in-app preview, sent as a raw ArrayBuffer.
 #[tauri::command]
@@ -107,8 +107,7 @@ pub async fn document_open_external(state: St<'_>, id: String) -> AppResult<()> 
     .await
 }
 
-/// Opens a locked document for a few minutes after re-confirming identity:
-/// with `password`, or with Windows Hello when no password is given.
+/// Opens a locked document for a few minutes (see `auth::reveal_item`).
 #[tauri::command]
 pub async fn document_reveal(
     app: AppHandle,
@@ -116,26 +115,5 @@ pub async fn document_reveal(
     id: String,
     password: Option<String>,
 ) -> AppResult<()> {
-    let s = state.inner().clone();
-    let hwnd = match password {
-        Some(_) => None,
-        None => Some(super::auth::main_hwnd(&app)?),
-    };
-    blocking(move || {
-        match (password, hwnd) {
-            (Some(pw), _) => auth::verify_password(&s, &pw)?,
-            (None, Some(hwnd)) => {
-                ocr::init_thread();
-                s.key()?;
-                if !hello::is_available() {
-                    return Err(AppError::HelloUnavailable);
-                }
-                hello::verify(hwnd, "Open a locked document in 0x-hub")?;
-            }
-            (None, None) => return Err(AppError::HelloUnavailable),
-        }
-        s.reveal(&id);
-        Ok(())
-    })
-    .await
+    super::auth::reveal_item(&app, state.inner().clone(), id, password).await
 }

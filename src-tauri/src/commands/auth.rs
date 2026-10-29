@@ -124,3 +124,34 @@ pub async fn hello_unlock(app: AppHandle, state: St<'_>) -> AppResult<()> {
     after_unlock(&app);
     Ok(())
 }
+
+/// Re-confirms identity for a locked document or note and opens it for a few minutes:
+/// with `password`, or with Windows Hello when no password is given.
+pub(super) async fn reveal_item(
+    app: &AppHandle,
+    state: Arc<AppState>,
+    id: String,
+    password: Option<String>,
+) -> AppResult<()> {
+    let hwnd = match password {
+        Some(_) => None,
+        None => Some(main_hwnd(app)?),
+    };
+    blocking(move || {
+        match (password, hwnd) {
+            (Some(pw), _) => auth::verify_password(&state, &pw)?,
+            (None, Some(hwnd)) => {
+                ocr::init_thread();
+                state.key()?;
+                if !hello::is_available() {
+                    return Err(AppError::HelloUnavailable);
+                }
+                hello::verify(hwnd, "Open a locked item in 0x-hub")?;
+            }
+            (None, None) => return Err(AppError::HelloUnavailable),
+        }
+        state.reveal(&id);
+        Ok(())
+    })
+    .await
+}

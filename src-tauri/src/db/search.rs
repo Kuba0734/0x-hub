@@ -78,7 +78,11 @@ pub fn document_body(doc: &documents::Document, ocr: Option<&str>) -> String {
     body
 }
 
+/// Locked notes are only findable by title.
 pub fn note_body(note: &notes::Note) -> String {
+    if note.locked {
+        return String::new();
+    }
     let mut body = note.data.plain.clone();
     for item in &note.data.items {
         body.push(' ');

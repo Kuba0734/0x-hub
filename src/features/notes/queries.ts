@@ -53,7 +53,12 @@ export function useUpdateNote() {
       );
       void qc.invalidateQueries({ queryKey: ["overview"] });
     },
-    onError: (e) => toast.error(toIpcError(e).message),
+    onError: (e) => {
+      const err = toIpcError(e);
+      // The note's access window ran out: refetch so the editor switches to the lock gate.
+      if (err.code === "document_locked") void qc.invalidateQueries({ queryKey: noteKeys.all });
+      else toast.error(err.message);
+    },
   });
 }
 

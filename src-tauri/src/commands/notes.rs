@@ -3,7 +3,13 @@ use tauri::{AppHandle, Emitter};
 use super::St;
 use crate::db::notes::{self, Note, NoteData, NotePatch};
 use crate::db::{self, documents, search};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
+use crate::state::AppState;
+
+fn with_access(state: &AppState, note: Note) -> Note {
+    let revealed = state.is_revealed(&note.id);
+    note.with_access(revealed)
+}
 
 fn changed(app: &AppHandle, id: &str) {
     // Lets other windows (sticky pop-outs, quick note) refresh.
@@ -13,13 +19,15 @@ fn changed(app: &AppHandle, id: &str) {
 #[tauri::command]
 pub fn notes_list(state: St<'_>, trashed: Option<bool>) -> AppResult<Vec<Note>> {
     let key = state.key()?;
-    notes::list(&state.db(), &key, trashed.unwrap_or(false))
+    let list = notes::list(&state.db(), &key, trashed.unwrap_or(false))?;
+    Ok(list.into_iter().map(|n| with_access(&state, n)).collect())
 }
 
 #[tauri::command]
 pub fn note_get(state: St<'_>, id: String) -> AppResult<Note> {
     let key = state.key()?;
-    notes::get(&state.db(), &key, &id)
+    let note = notes::get(&state.db(), &key, &id)?;
+    Ok(with_access(&state, note))
 }
 
 #[tauri::command]
@@ -40,11 +48,30 @@ pub fn note_create(
 #[tauri::command]
 pub fn note_update(app: AppHandle, state: St<'_>, id: String, patch: NotePatch) -> AppResult<Note> {
     let key = state.key()?;
+    // Editing the body of, or unlocking, a locked note needs access; locking never does.
+    if (patch.touches_body() || patch.locked == Some(false))
+        && notes::is_locked(&state.db(), &id)?
+        && !state.is_revealed(&id)
+    {
+        return Err(AppError::DocumentLocked);
+    }
     let conn = state.db();
     let note = notes::update(&conn, &key, &id, patch, db::now_ms())?;
     search::index_note(&conn, &note)?;
+    drop(conn);
     changed(&app, &id);
-    Ok(note)
+    Ok(with_access(&state, note))
+}
+
+/// Opens a locked note for a few minutes (see `auth::reveal_item`).
+#[tauri::command]
+pub async fn note_reveal(
+    app: AppHandle,
+    state: St<'_>,
+    id: String,
+    password: Option<String>,
+) -> AppResult<()> {
+    super::auth::reveal_item(&app, state.inner().clone(), id, password).await
 }
 
 #[tauri::command]

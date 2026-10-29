@@ -40,6 +40,23 @@ pub struct Note {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub linked_document_ids: Vec<String>,
+    /// Content requires re-confirming identity before it is returned.
+    pub locked: bool,
+    /// Locked, but re-confirmed recently (set by the command layer from AppState).
+    pub revealed: bool,
+}
+
+impl Note {
+    /// Fills `revealed` and blanks the body of locked notes that aren't revealed.
+    pub fn with_access(mut self, revealed: bool) -> Self {
+        self.revealed = self.locked && revealed;
+        if self.locked && !revealed {
+            self.data.content.clear();
+            self.data.plain.clear();
+            self.data.items.clear();
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -51,6 +68,14 @@ pub struct NotePatch {
     pub items: Option<Vec<ChecklistItem>>,
     pub shade: Option<u8>,
     pub pinned: Option<bool>,
+    pub locked: Option<bool>,
+}
+
+impl NotePatch {
+    /// Changes the note body (needs access when the note is locked).
+    pub fn touches_body(&self) -> bool {
+        self.content.is_some() || self.plain.is_some() || self.items.is_some()
+    }
 }
 
 fn aad(id: &str) -> Vec<u8> {
@@ -76,7 +101,7 @@ pub fn create(
     get(conn, key, &id)
 }
 
-const COLUMNS: &str = "id, kind, shade, data, pinned, created_at, updated_at, deleted_at";
+const COLUMNS: &str = "id, kind, shade, data, pinned, created_at, updated_at, deleted_at, locked";
 
 struct RawRow {
     id: String,
@@ -87,6 +112,7 @@ struct RawRow {
     created_at: i64,
     updated_at: i64,
     deleted_at: Option<i64>,
+    locked: bool,
 }
 
 fn raw(r: &Row) -> rusqlite::Result<RawRow> {
@@ -99,6 +125,7 @@ fn raw(r: &Row) -> rusqlite::Result<RawRow> {
         created_at: r.get(5)?,
         updated_at: r.get(6)?,
         deleted_at: r.get(7)?,
+        locked: r.get(8)?,
     })
 }
 
@@ -114,6 +141,8 @@ fn hydrate(key: &SecretKey, r: RawRow, links: Vec<String>) -> AppResult<Note> {
         updated_at: r.updated_at,
         deleted_at: r.deleted_at,
         linked_document_ids: links,
+        locked: r.locked,
+        revealed: false,
     })
 }
 
@@ -189,6 +218,12 @@ pub fn update(
             params![shade.min(4), id],
         )?;
     }
+    if let Some(locked) = p.locked {
+        conn.execute(
+            "UPDATE notes SET locked = ?1 WHERE id = ?2",
+            params![locked, id],
+        )?;
+    }
     if let Some(pinned) = p.pinned {
         conn.execute(
             "UPDATE notes SET pinned = ?1 WHERE id = ?2",
@@ -200,6 +235,12 @@ pub fn update(
         params![now, id],
     )?;
     get(conn, key, id)
+}
+
+pub fn is_locked(conn: &Connection, id: &str) -> AppResult<bool> {
+    conn.query_row("SELECT locked FROM notes WHERE id = ?1", [id], |r| r.get(0))
+        .optional()?
+        .ok_or(AppError::NotFound)
 }
 
 pub fn trash(conn: &Connection, id: &str, now: i64) -> AppResult<()> {
@@ -288,6 +329,35 @@ mod tests {
         assert!(n.pinned);
         assert_eq!(list(&conn, &key, false).unwrap().len(), 1);
         assert!(create(&conn, &key, "drawing", NoteData::default(), 3).is_err());
+    }
+
+    #[test]
+    fn locked_notes_hide_their_body() {
+        let conn = crate::db::open_in_memory().unwrap();
+        let key = SecretKey::generate();
+        let data = NoteData {
+            title: "Bank".into(),
+            content: "<p>PIN 1234</p>".into(),
+            plain: "PIN 1234".into(),
+            items: vec![],
+        };
+        let n = create(&conn, &key, "markdown", data, 1).unwrap();
+        let patch = NotePatch {
+            locked: Some(true),
+            ..Default::default()
+        };
+        assert!(!patch.touches_body());
+        let n = update(&conn, &key, &n.id, patch, 2).unwrap();
+        assert!(is_locked(&conn, &n.id).unwrap());
+        assert_eq!(crate::db::search::note_body(&n), "");
+        let hidden = n.clone().with_access(false);
+        assert_eq!((hidden.data.plain.as_str(), hidden.revealed), ("", false));
+        assert_eq!(hidden.data.title, "Bank");
+        let shown = n.with_access(true);
+        assert_eq!(
+            (shown.data.plain.as_str(), shown.revealed),
+            ("PIN 1234", true)
+        );
     }
 
     #[test]

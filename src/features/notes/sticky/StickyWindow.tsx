@@ -12,24 +12,33 @@ import { useAutosave } from "../useAutosave";
 export function StickyWindow({ noteId }: { noteId: string }) {
   const [note, setNote] = useState<Note | null>(null);
   const [text, setText] = useState("");
-  const [locked, setLocked] = useState(false);
+  /** "vault": 0x-hub is locked; "note": this note is locked and not re-confirmed. */
+  const [locked, setLocked] = useState<false | "vault" | "note">(false);
 
   const load = useCallback(() => {
     ipc.notes.get(noteId).then(
       (n) => {
         setNote(n);
         setText(n.content);
-        setLocked(false);
+        setLocked(n.locked && !n.revealed ? "note" : false);
       },
-      (e) => setLocked(toIpcError(e).code === "locked"),
+      (e) => setLocked(toIpcError(e).code === "locked" ? "vault" : false),
     );
   }, [noteId]);
 
   useEffect(load, [load]);
-  useEffect(() => onEvent("vault://locked", () => setLocked(true)), []);
+  useEffect(() => onEvent("vault://locked", () => setLocked("vault")), []);
   useEffect(() => onEvent("vault://unlocked", load), [load]);
 
-  const save = useCallback((patch: NotePatch) => ipc.notes.update(noteId, patch), [noteId]);
+  // Never write while hidden: the body we hold would be empty.
+  const save = useCallback(
+    (patch: NotePatch) =>
+      ipc.notes.update(noteId, patch).catch((e) => {
+        if (toIpcError(e).code === "document_locked") setLocked("note");
+        throw e;
+      }),
+    [noteId],
+  );
   const auto = useAutosave(save);
 
   if (locked)
@@ -37,7 +46,9 @@ export function StickyWindow({ noteId }: { noteId: string }) {
       <PopupFrame title={strings.notes.types.sticky ?? ""}>
         <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
           <Lock className="h-5 w-5 text-fg-2" />
-          <p className="text-[12px] text-fg-2">{strings.quickNote.locked}</p>
+          <p className="text-[12px] text-fg-2">
+            {locked === "note" ? strings.notes.stickyLocked : strings.quickNote.locked}
+          </p>
           <GlassButton size="sm" onClick={() => void ipc.app.showMain()}>
             {strings.quickNote.openApp}
           </GlassButton>

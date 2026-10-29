@@ -89,6 +89,8 @@ pub fn migrations() -> Migrations<'static> {
         ),
         // 3: per-document lock
         M::up("ALTER TABLE documents ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;"),
+        // 4: per-note lock
+        M::up("ALTER TABLE notes ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;"),
     ])
 }
 
@@ -112,6 +114,6 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
 }

@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
-import { ExternalLink, NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
+import { ExternalLink, Lock, LockOpen, NotebookPen, Pin, PinOff, Trash2 } from "lucide-react";
 import { GlassCard, GlassContextMenu } from "@/components/glass";
 import { spring } from "@/components/motion/presets";
 import { relativeTime } from "@/lib/format";
@@ -29,6 +29,23 @@ export function NoteCard({ note }: { note: Note }) {
       icon: note.pinned ? <PinOff /> : <Pin />,
       onSelect: () => update.mutate({ id: note.id, patch: { pinned: !note.pinned } }),
     },
+    // A hidden locked note can only be opened (which asks for confirmation).
+    ...(note.locked && !note.revealed
+      ? []
+      : [
+          {
+            label: note.locked ? strings.notes.unlockNote : strings.notes.lockNote,
+            icon: note.locked ? <LockOpen /> : <Lock />,
+            onSelect: () =>
+              update.mutate(
+                { id: note.id, patch: { locked: !note.locked } },
+                {
+                  onSuccess: () =>
+                    toast.show(note.locked ? strings.notes.unlockedDone : strings.notes.lockedDone),
+                },
+              ),
+          },
+        ]),
     ...(note.kind === "sticky"
       ? [
           {
@@ -71,18 +88,30 @@ export function NoteCard({ note }: { note: Note }) {
             <span className="text-[11px] tracking-wide uppercase">
               {strings.notes.types[note.kind]}
             </span>
-            {note.pinned && (
-              <Pin className="ml-auto h-3.5 w-3.5 text-fg-2" aria-label={strings.common.pinned} />
-            )}
+            <span className="ml-auto flex items-center gap-1.5">
+              {note.locked && (
+                <Lock className="h-3.5 w-3.5 text-fg-2" aria-label={strings.notes.lockedPreview} />
+              )}
+              {note.pinned && (
+                <Pin className="h-3.5 w-3.5 text-fg-2" aria-label={strings.common.pinned} />
+              )}
+            </span>
           </div>
           {note.title && (
             <h3 className="line-clamp-2 text-[15px] font-medium tracking-[-0.01em]">
               {note.title}
             </h3>
           )}
-          <p className="line-clamp-5 flex-1 text-[13px] leading-relaxed whitespace-pre-line text-fg-2">
-            {notePreview(note)}
-          </p>
+          {note.locked && !note.revealed ? (
+            <p className="flex flex-1 items-center gap-2 text-[13px] text-fg-3">
+              <Lock className="h-4 w-4" />
+              {strings.notes.lockedPreview}
+            </p>
+          ) : (
+            <p className="line-clamp-5 flex-1 text-[13px] leading-relaxed whitespace-pre-line text-fg-2">
+              {notePreview(note)}
+            </p>
+          )}
           <div className="flex items-center justify-between text-[11px] text-fg-3">
             <span>{relativeTime(note.updatedAt)}</span>
             {note.kind === "checklist" && note.items.length > 0 && (

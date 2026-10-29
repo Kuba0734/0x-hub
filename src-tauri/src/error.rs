@@ -16,7 +16,7 @@ pub enum AppError {
     Backoff { retry_after_ms: u64 },
     #[error("Not found")]
     NotFound,
-    #[error("This document is locked. Confirm it's you to open it")]
+    #[error("This is locked. Confirm it's you to open it")]
     DocumentLocked,
     #[error("{0}")]
     Invalid(String),
