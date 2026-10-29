@@ -122,6 +122,12 @@ export function SecuritySection({ settings }: { settings: AppSettings }) {
           checked={settings.lockOnSessionLock}
           onChange={(v) => void patch({ lockOnSessionLock: v })}
         />
+        <GlassToggle
+          label={s.blurPreviews}
+          description={s.blurPreviewsHint}
+          checked={settings.blurPreviews}
+          onChange={(v) => void patch({ blurPreviews: v })}
+        />
       </SettingsGroup>
     </>
   );

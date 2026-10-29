@@ -42,6 +42,8 @@ pub struct AppSettings {
     pub autostart: bool,
     pub auto_backup: AutoBackup,
     pub skip_version: Option<String>,
+    /// Blur document thumbnails in the grid until a document is opened.
+    pub blur_previews: bool,
 }
 
 impl Default for AppSettings {
@@ -59,6 +61,7 @@ impl Default for AppSettings {
             autostart: false,
             auto_backup: AutoBackup::default(),
             skip_version: None,
+            blur_previews: true,
         }
     }
 }

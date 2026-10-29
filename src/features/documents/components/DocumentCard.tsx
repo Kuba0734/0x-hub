@@ -6,6 +6,7 @@ import { spring } from "@/components/motion/presets";
 import { formatBytes } from "@/lib/format";
 import type { Category, DocumentItem } from "@/lib/ipc";
 import { strings } from "@/lib/strings";
+import { useSettings } from "@/stores/settings";
 import { ExpiryBadge } from "./ExpiryBadge";
 import { Thumbnail } from "./Thumbnail";
 
@@ -19,6 +20,7 @@ interface Props {
 
 export function DocumentCard({ doc, category, menu, fresh }: Props) {
   const navigate = useNavigate();
+  const blurPreviews = useSettings((st) => st.settings?.blurPreviews ?? true);
   return (
     <motion.div
       layout
@@ -39,7 +41,11 @@ export function DocumentCard({ doc, category, menu, fresh }: Props) {
           }}
           className="flex cursor-pointer flex-col overflow-hidden"
         >
-          <Thumbnail doc={doc} className="h-32 border-b border-line bg-black/30" />
+          <Thumbnail
+            doc={doc}
+            blurred={blurPreviews}
+            className="h-32 border-b border-line bg-black/30"
+          />
           <div className="flex flex-col gap-1.5 p-3.5">
             <div className="flex items-start gap-2">
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-normal">

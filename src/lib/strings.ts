@@ -196,6 +196,7 @@ export const strings = {
     openExternallyHint:
       "Opens a temporary decrypted copy. It is deleted when you lock or quit 0x-hub.",
     preview: "Preview",
+    previewHidden: "Preview hidden. Open the document to see it.",
     noPreview: "No preview for this file type.",
     officeHint: "Office files can't be previewed here. Open them in their app instead.",
     ocr: "Recognized text",
@@ -333,6 +334,9 @@ export const strings = {
     autoLockNever: "Never",
     minutes: (n: number) => `${n} min`,
     lockOnSessionLock: "Lock when Windows locks",
+    blurPreviews: "Blur document previews",
+    blurPreviewsHint:
+      "Thumbnails stay blurred in the overview and only show clearly once you open a document.",
     closeToTray: "Closing the window keeps 0x-hub in the tray",
     reduceMotion: "Reduce motion",
     reduceMotionHint: "Follows the Windows animation setting until you change it.",

@@ -177,6 +177,7 @@ export interface AppSettings {
   autostart: boolean;
   autoBackup: AutoBackup;
   skipVersion: string | null;
+  blurPreviews: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<AppSettings, "autoBackup">> & {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { File, FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
+import { EyeOff, File, FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
 import type { DocumentItem } from "@/lib/ipc";
+import { strings } from "@/lib/strings";
 import { useObjectUrl } from "@/lib/useObjectUrl";
 import { useDocumentContent, useImageSource } from "../queries";
 
@@ -34,11 +35,23 @@ function useInView<T extends Element>() {
   return { ref, seen };
 }
 
+/** Static (never animated) blur for privacy; scaled up so the soft edges stay inside the frame. */
+const BLUR = "scale-110 blur-lg";
+
 /**
  * In-memory thumbnail: images via object URL, PDFs by rendering page 1.
  * Generated lazily when visible; nothing is written to disk.
+ * `blurred` hides the content until the document is opened.
  */
-export function Thumbnail({ doc, className }: { doc: DocumentItem; className?: string }) {
+export function Thumbnail({
+  doc,
+  className,
+  blurred = false,
+}: {
+  doc: DocumentItem;
+  className?: string;
+  blurred?: boolean;
+}) {
   const { ref, seen } = useInView<HTMLDivElement>();
   const wants = (doc.kind === "image" || doc.kind === "pdf") && doc.size <= THUMB_MAX_BYTES;
   const { data } = useDocumentContent(doc.id, seen && wants && doc.kind === "pdf");
@@ -77,7 +90,7 @@ export function Thumbnail({ doc, className }: { doc: DocumentItem; className?: s
         <img
           src={url}
           alt=""
-          className="h-full w-full object-cover opacity-90"
+          className={`h-full w-full object-cover opacity-90 ${blurred ? BLUR : ""}`}
           draggable={false}
           onError={() => setImgFailed(true)}
         />
@@ -88,8 +101,16 @@ export function Thumbnail({ doc, className }: { doc: DocumentItem; className?: s
         <canvas
           ref={canvas}
           aria-hidden="true"
-          className={`absolute top-0 left-0 grayscale-[30%] transition-opacity duration-300 ${pdfReady ? "opacity-85" : "opacity-0"}`}
+          className={`absolute top-0 left-0 grayscale-[30%] transition-opacity duration-300 ${pdfReady ? "opacity-85" : "opacity-0"} ${blurred ? BLUR : ""}`}
         />
+      )}
+      {blurred && ((url && !imgFailed) || pdfReady) && (
+        <span
+          aria-label={strings.documents.previewHidden}
+          className="absolute flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-fg-2"
+        >
+          <EyeOff className="h-4 w-4" />
+        </span>
       )}
     </div>
   );

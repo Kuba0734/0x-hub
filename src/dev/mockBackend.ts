@@ -131,6 +131,7 @@ let settings: AppSettings = {
   autostart: false,
   autoBackup: { enabled: false, folder: null, intervalDays: 7, lastRunAt: null },
   skipVersion: null,
+  blurPreviews: true,
 };
 
 export function installMockBackend() {
